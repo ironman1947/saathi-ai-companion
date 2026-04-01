@@ -103,8 +103,11 @@ Get a free API key at [console.groq.com](https://console.groq.com)
 ### 4. Run the backend
 
 ```bash
+cd backend
 uvicorn main:app --reload --port 8000
 ```
+
+> **Note:** Run from inside the `backend/` directory so Python can resolve sibling imports (`database.py`, `models.py`).
 
 ### 5. Open the frontend
 

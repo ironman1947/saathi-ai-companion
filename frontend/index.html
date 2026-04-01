@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Saathi AI — Your Emotional Companion</title>
+  <meta name="description" content="Saathi AI is your personal emotional reflection companion. Choose a persona and start a meaningful conversation today." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ===================== RESET & BASE ===================== */
+    *, *::before, *::after {
+      margin: 0; padding: 0; box-sizing: border-box;
+    }
+
+    :root {
+      --bg-deep:       #0a0a14;
+      --bg-surface:    #12121f;
+      --bg-glass:      rgba(255,255,255,0.04);
+      --bg-glass-hover:rgba(255,255,255,0.08);
+      --border-glass:  rgba(255,255,255,0.1);
+      --border-glow:   rgba(139,92,246,0.4);
+
+      --accent-purple:  #8b5cf6;
+      --accent-violet:  #7c3aed;
+      --accent-indigo:  #6366f1;
+      --accent-pink:    #ec4899;
+      --accent-cyan:    #06b6d4;
+      --accent-amber:   #f59e0b;
+
+      --text-primary:   #f1f0ff;
+      --text-secondary: #a09dc0;
+      --text-muted:     #6b6880;
+
+      --radius-sm:  8px;
+      --radius-md:  16px;
+      --radius-lg:  24px;
+      --radius-xl:  32px;
+
+      --shadow-glow: 0 0 40px rgba(139,92,246,0.2);
+      --shadow-card: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      overflow: hidden;
+    }
+
+    /* ===================== ANIMATED BACKGROUND ===================== */
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .bg-orbs {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.18;
+      animation: floatOrb 12s ease-in-out infinite;
+    }
+
+    .orb-1 {
+      width: 480px; height: 480px;
+      background: radial-gradient(circle, #8b5cf6, #6366f1);
+      top: -10%; left: -10%;
+      animation-delay: 0s;
+    }
+    .orb-2 {
+      width: 360px; height: 360px;
+      background: radial-gradient(circle, #ec4899, #8b5cf6);
+      bottom: -5%; right: -5%;
+      animation-delay: -4s;
+    }
+    .orb-3 {
+      width: 280px; height: 280px;
+      background: radial-gradient(circle, #06b6d4, #6366f1);
+      top: 50%; left: 60%;
+      animation-delay: -8s;
+    }
+
+    @keyframes floatOrb {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33%       { transform: translate(30px, -40px) scale(1.05); }
+      66%       { transform: translate(-20px, 20px) scale(0.95); }
+    }
+
+    /* ===================== SCREENS ===================== */
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    .screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(20px);
+    }
+
+    /* ===================== PERSONA SELECTOR ===================== */
+    #persona-screen {
+      flex-direction: column;
+      gap: 0;
+      padding: 24px;
+    }
+
+    .hero-header {
+      text-align: center;
+      margin-bottom: 52px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(139,92,246,0.15);
+      border: 1px solid rgba(139,92,246,0.3);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #c4b5fd;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+
+    .hero-badge .dot {
+      width: 6px; height: 6px;
+      background: #8b5cf6;
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .hero-title {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 700;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #f1f0ff 0%, #c4b5fd 50%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+    }
+
+    .hero-subtitle {
+      font-size: 1rem;
+      color: var(--text-secondary);
+      font-weight: 400;
+      max-width: 400px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* Persona Cards Grid */
+    .personas-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      max-width: 860px;
+      width: 100%;
+    }
+
+    @media (max-width: 700px) {
+      .personas-grid {
+        grid-template-columns: 1fr;
+        max-width: 360px;
+      }
+    }
+
+    .persona-card {
+      position: relative;
+      background: var(--bg-glass);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-lg);
+      padding: 32px 24px;
+      cursor: pointer;
+      transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1),
+                  border-color 0.3s ease,
+                  box-shadow 0.3s ease,
+                  background 0.3s ease;
+      overflow: hidden;
+      backdrop-filter: blur(20px);
+    }
+
+    .persona-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 0;
+    }
+
+    .persona-card[data-persona="supportive_friend"]::before {
+      background: linear-gradient(135deg, rgba(139,92,246,0.08), rgba(99,102,241,0.08));
+    }
+    .persona-card[data-persona="wise_guide"]::before {
+      background: linear-gradient(135deg, rgba(6,182,212,0.08), rgba(99,102,241,0.08));
+    }
+    .persona-card[data-persona="reality_anchor"]::before {
+      background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(239,68,68,0.08));
+    }
+
+    .persona-card:hover {
+      transform: translateY(-6px) scale(1.02);
+      border-color: rgba(255,255,255,0.2);
+      box-shadow: var(--shadow-card), 0 0 40px rgba(139,92,246,0.15);
+    }
+
+    .persona-card:hover::before { opacity: 1; }
+
+    .persona-card:active {
+      transform: translateY(-2px) scale(0.99);
+    }
+
+    .card-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .persona-icon-wrap {
+      width: 60px; height: 60px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      margin-bottom: 20px;
+    }
+
+    .persona-card[data-persona="supportive_friend"] .persona-icon-wrap {
+      background: linear-gradient(135deg, rgba(139,92,246,0.2), rgba(236,72,153,0.2));
+    }
+    .persona-card[data-persona="wise_guide"] .persona-icon-wrap {
+      background: linear-gradient(135deg, rgba(6,182,212,0.2), rgba(99,102,241,0.2));
+    }
+    .persona-card[data-persona="reality_anchor"] .persona-icon-wrap {
+      background: linear-gradient(135deg, rgba(245,158,11,0.2), rgba(239,68,68,0.12));
+    }
+
+    .persona-name {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .persona-desc {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .persona-tag {
+      display: inline-block;
+      margin-top: 16px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 100px;
+    }
+
+    .persona-card[data-persona="supportive_friend"] .persona-tag {
+      color: #c4b5fd;
+      background: rgba(139,92,246,0.15);
+    }
+    .persona-card[data-persona="wise_guide"] .persona-tag {
+      color: #67e8f9;
+      background: rgba(6,182,212,0.15);
+    }
+    .persona-card[data-persona="reality_anchor"] .persona-tag {
+      color: #fcd34d;
+      background: rgba(245,158,11,0.15);
+    }
+
+    /* Arrow on hover */
+    .card-arrow {
+      position: absolute;
+      top: 20px; right: 20px;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      opacity: 0;
+      transform: translateX(-8px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .persona-card:hover .card-arrow {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    /* ===================== CHAT SCREEN ===================== */
+    #chat-screen {
+      flex-direction: column;
+      padding: 0;
+    }
+
+    .chat-container {
+      width: 100%;
+      max-width: 720px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Chat Header */
+    .chat-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 20px 24px;
+      background: rgba(10,10,20,0.8);
+      backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--border-glass);
+      position: relative;
+      z-index: 10;
+      flex-shrink: 0;
+    }
+
+    .back-btn {
+      width: 38px; height: 38px;
+      border-radius: 12px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border-glass);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    }
+
+    .back-btn:hover {
+      background: var(--bg-glass-hover);
+      color: var(--text-primary);
+      transform: translateX(-2px);
+    }
+
+    .chat-persona-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .chat-persona-avatar {
+      width: 42px; height: 42px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .chat-persona-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .chat-persona-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s ease infinite;
+    }
+
+    .header-menu {
+      width: 38px; height: 38px;
+      border-radius: 12px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border-glass);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .header-menu:hover {
+      background: var(--bg-glass-hover);
+      color: var(--text-primary);
+    }
+
+    /* Messages Area */
+    .messages-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 24px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .messages-area::-webkit-scrollbar { width: 4px; }
+    .messages-area::-webkit-scrollbar-track { background: transparent; }
+    .messages-area::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+    }
+
+    /* Welcome message */
+    .welcome-msg {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+
+    .welcome-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .welcome-msg h3 {
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .welcome-msg p {
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+
+    /* Message Bubbles */
+    .message-row {
+      display: flex;
+      gap: 10px;
+      animation: msgIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+
+    .message-row.user {
+      flex-direction: row-reverse;
+    }
+
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)   scale(1); }
+    }
+
+    .msg-avatar {
+      width: 32px; height: 32px;
+      border-radius: 10px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      align-self: flex-end;
+    }
+
+    .msg-avatar.ai {
+      background: linear-gradient(135deg, rgba(139,92,246,0.3), rgba(99,102,241,0.3));
+    }
+
+    .msg-avatar.user {
+      background: linear-gradient(135deg, rgba(236,72,153,0.2), rgba(139,92,246,0.2));
+    }
+
+    .message-bubble {
+      max-width: 72%;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 0.9rem;
+      line-height: 1.65;
+      font-family: 'Inter', sans-serif;
+      font-weight: 400;
+    }
+
+    .message-row.ai .message-bubble {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-glass);
+      color: var(--text-primary);
+      border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 4px;
+      backdrop-filter: blur(12px);
+    }
+
+    .message-row.user .message-bubble {
+      background: linear-gradient(135deg, #7c3aed, #6366f1);
+      color: #fff;
+      border-radius: var(--radius-md) var(--radius-md) 4px var(--radius-md);
+      box-shadow: 0 4px 16px rgba(124,58,237,0.35);
+    }
+
+    .msg-time {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    .message-row.ai .msg-time { text-align: left; }
+
+    /* Typing Indicator */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: msgIn 0.3s ease both;
+    }
+
+    .typing-bubble {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 4px;
+      padding: 14px 18px;
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      backdrop-filter: blur(12px);
+    }
+
+    .typing-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      animation: typingBounce 1.2s ease-in-out infinite;
+    }
+
+    .typing-dot:nth-child(1) { animation-delay: 0s; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typingBounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+      30%            { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* Input Area */
+    .input-area {
+      padding: 16px 24px 24px;
+      background: rgba(10,10,20,0.8);
+      backdrop-filter: blur(24px);
+      border-top: 1px solid var(--border-glass);
+      flex-shrink: 0;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border-glass);
+      border-radius: 20px;
+      padding: 10px 10px 10px 18px;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .input-row:focus-within {
+      border-color: rgba(139,92,246,0.5);
+      box-shadow: 0 0 0 3px rgba(139,92,246,0.08);
+    }
+
+    #message-input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      resize: none;
+      max-height: 120px;
+      line-height: 1.5;
+      padding: 4px 0;
+    }
+
+    #message-input::placeholder { color: var(--text-muted); }
+
+    #message-input::-webkit-scrollbar { width: 3px; }
+    #message-input::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+
+    #send-btn {
+      width: 42px; height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #7c3aed, #6366f1);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+      transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1),
+                  box-shadow 0.2s ease,
+                  opacity 0.2s ease;
+      box-shadow: 0 4px 14px rgba(124,58,237,0.4);
+    }
+
+    #send-btn:hover:not(:disabled) {
+      transform: scale(1.1);
+      box-shadow: 0 6px 20px rgba(124,58,237,0.55);
+    }
+
+    #send-btn:active:not(:disabled) {
+      transform: scale(0.95);
+    }
+
+    #send-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .input-hint {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+
+    /* ===================== CRISIS BANNER ===================== */
+    .crisis-banner {
+      background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(190,24,93,0.1));
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 0.85rem;
+      color: #fca5a5;
+      line-height: 1.5;
+      animation: msgIn 0.4s ease both;
+    }
+
+    .crisis-icon { font-size: 20px; flex-shrink: 0; }
+
+    /* ===================== TOAST ===================== */
+    #toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: rgba(30,30,48,0.95);
+      border: 1px solid var(--border-glass);
+      backdrop-filter: blur(20px);
+      border-radius: var(--radius-md);
+      padding: 12px 20px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      z-index: 999;
+      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease;
+      white-space: nowrap;
+    }
+
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* ===================== UTILITY ===================== */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Ambient background orbs -->
+  <div class="bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <!-- ===== SCREEN 1: PERSONA SELECTOR ===== -->
+  <div class="screen" id="persona-screen">
+    <div style="display:flex; flex-direction:column; align-items:center; width:100%;">
+
+      <div class="hero-header">
+        <div class="hero-badge">
+          <span class="dot"></span>
+          Emotional AI Companion
+        </div>
+        <h1 class="hero-title">Who do you want<br/>to talk to?</h1>
+        <p class="hero-subtitle">Choose a companion that feels right for what you're going through right now.</p>
+      </div>
+
+      <div class="personas-grid">
+
+        <!-- Supportive Friend -->
+        <div class="persona-card" data-persona="supportive_friend" id="card-supportive" tabindex="0" role="button" aria-label="Choose Supportive Friend">
+          <div class="card-arrow">→</div>
+          <div class="card-content">
+            <div class="persona-icon-wrap">💜</div>
+            <div class="persona-name">Supportive Friend</div>
+            <div class="persona-desc">Warm, empathetic, and emotionally intelligent. Here to listen without judgment and help you feel understood.</div>
+            <span class="persona-tag">Emotional</span>
+          </div>
+        </div>
+
+        <!-- Wise Guide -->
+        <div class="persona-card" data-persona="wise_guide" id="card-wise" tabindex="0" role="button" aria-label="Choose Wise Guide">
+          <div class="card-arrow">→</div>
+          <div class="card-content">
+            <div class="persona-icon-wrap">🌊</div>
+            <div class="persona-name">Wise Guide</div>
+            <div class="persona-desc">Calm, reflective, and philosophical. Asks thoughtful questions that help you find your own clarity.</div>
+            <span class="persona-tag">Reflective</span>
+          </div>
+        </div>
+
+        <!-- Reality Anchor -->
+        <div class="persona-card" data-persona="reality_anchor" id="card-reality" tabindex="0" role="button" aria-label="Choose Reality Anchor">
+          <div class="card-arrow">→</div>
+          <div class="card-content">
+            <div class="persona-icon-wrap">⚡</div>
+            <div class="persona-name">Reality Anchor</div>
+            <div class="persona-desc">Practical, structured, and direct. Cuts through the noise and gives you clear, actionable next steps.</div>
+            <span class="persona-tag">Practical</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== SCREEN 2: CHAT ===== -->
+  <div class="screen hidden" id="chat-screen">
+    <div class="chat-container">
+
+      <!-- Header -->
+      <div class="chat-header">
+        <button class="back-btn" id="back-btn" title="Choose another persona" aria-label="Go back to persona selection">←</button>
+
+        <div class="chat-persona-info">
+          <div class="chat-persona-avatar" id="chat-avatar"></div>
+          <div>
+            <div class="chat-persona-name" id="chat-persona-name">—</div>
+            <div class="chat-persona-status">
+              <span class="status-dot"></span>
+              <span>Active · here for you</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="header-menu" title="Options" aria-label="Menu">⋯</button>
+      </div>
+
+      <!-- Messages -->
+      <div class="messages-area" id="messages-area">
+        <div class="welcome-msg" id="welcome-msg">
+          <span class="welcome-icon" id="welcome-icon"></span>
+          <h3 id="welcome-title">Ready to listen</h3>
+          <p id="welcome-desc">Share what's on your mind — I'm here.</p>
+        </div>
+      </div>
+
+      <!-- Input -->
+      <div class="input-area">
+        <div class="input-row">
+          <textarea
+            id="message-input"
+            placeholder="Type a message…"
+            rows="1"
+            aria-label="Message input"
+          ></textarea>
+          <button id="send-btn" aria-label="Send message" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+        <div class="input-hint">Saathi AI · Beta · Your conversations stay private</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ===================== STATE =====================
+  const state = {
+    persona: null,
+    isSending: false,
+    messages: [],
+  };
+
+  const BACKEND_URL = 'http://localhost:8000';
+
+  const PERSONAS = {
+    supportive_friend: {
+      name: 'Supportive Friend',
+      icon: '💜',
+      welcome: 'I\'m here to listen, without judgment. What\'s going on?',
+      welcomeIcon: '💜',
+      welcomeTitle: 'Here with you',
+      welcomeDesc: 'Open up whenever you\'re ready — no rush at all.',
+    },
+    wise_guide: {
+      name: 'Wise Guide',
+      icon: '🌊',
+      welcome: 'What brings you here today? Let\'s explore it together.',
+      welcomeIcon: '🌊',
+      welcomeTitle: 'Space to reflect',
+      welcomeDesc: 'Take a breath. Let\'s find some clarity together.',
+    },
+    reality_anchor: {
+      name: 'Reality Anchor',
+      icon: '⚡',
+      welcome: 'Tell me what\'s going on. We\'ll figure out a clear path forward.',
+      welcomeIcon: '⚡',
+      welcomeTitle: 'Let\'s get focused',
+      welcomeDesc: 'Give me the situation — we\'ll work through it pragmatically.',
+    },
+  };
+
+  // ===================== DOM REFS =====================
+  const personaScreen = document.getElementById('persona-screen');
+  const chatScreen    = document.getElementById('chat-screen');
+  const messagesArea  = document.getElementById('messages-area');
+  const msgInput      = document.getElementById('message-input');
+  const sendBtn       = document.getElementById('send-btn');
+  const backBtn       = document.getElementById('back-btn');
+  const chatAvatar    = document.getElementById('chat-avatar');
+  const chatName      = document.getElementById('chat-persona-name');
+  const welcomeMsg    = document.getElementById('welcome-msg');
+  const welcomeIcon   = document.getElementById('welcome-icon');
+  const welcomeTitle  = document.getElementById('welcome-title');
+  const welcomeDesc   = document.getElementById('welcome-desc');
+  const toast         = document.getElementById('toast');
+
+  // ===================== PERSONA SELECTION =====================
+  document.querySelectorAll('.persona-card').forEach(card => {
+    const select = () => {
+      const p = card.dataset.persona;
+      selectPersona(p);
+    };
+    card.addEventListener('click', select);
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); }
+    });
+  });
+
+  function selectPersona(persona) {
+    state.persona = persona;
+    state.messages = [];
+
+    const info = PERSONAS[persona];
+
+    // Update chat header
+    chatAvatar.textContent = info.icon;
+    chatName.textContent   = info.name;
+
+    // Update welcome block
+    welcomeIcon.textContent  = info.welcomeIcon;
+    welcomeTitle.textContent = info.welcomeTitle;
+    welcomeDesc.textContent  = info.welcomeDesc;
+
+    // Style avatar
+    const avatarStyles = {
+      supportive_friend: 'background: linear-gradient(135deg, rgba(139,92,246,0.3), rgba(236,72,153,0.2));',
+      wise_guide:        'background: linear-gradient(135deg, rgba(6,182,212,0.3), rgba(99,102,241,0.2));',
+      reality_anchor:    'background: linear-gradient(135deg, rgba(245,158,11,0.3), rgba(239,68,68,0.15));',
+    };
+    chatAvatar.style.cssText = avatarStyles[persona];
+
+    // Transition screens
+    personaScreen.classList.add('hidden');
+    chatScreen.classList.remove('hidden');
+
+    // Clear old messages except welcome
+    document.querySelectorAll('.message-row').forEach(m => m.remove());
+    document.querySelector('.typing-indicator')?.remove();
+    welcomeMsg.classList.remove('hidden');
+
+    // Send initial greeting from AI
+    setTimeout(() => {
+      welcomeMsg.classList.add('hidden');
+      addMessage('ai', info.welcome);
+    }, 500);
+
+    msgInput.focus();
+  }
+
+  // ===================== BACK BUTTON =====================
+  backBtn.addEventListener('click', () => {
+    chatScreen.classList.add('hidden');
+    personaScreen.classList.remove('hidden');
+    state.persona = null;
+    msgInput.value = '';
+    sendBtn.disabled = true;
+  });
+
+  // ===================== INPUT HANDLING =====================
+  msgInput.addEventListener('input', () => {
+    // Auto-resize
+    msgInput.style.height = 'auto';
+    msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+
+    sendBtn.disabled = msgInput.value.trim() === '' || state.isSending;
+  });
+
+  msgInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!sendBtn.disabled) sendMessage();
+    }
+  });
+
+  sendBtn.addEventListener('click', sendMessage);
+
+  // ===================== SEND MESSAGE =====================
+  async function sendMessage() {
+    const text = msgInput.value.trim();
+    if (!text || state.isSending) return;
+
+    state.isSending = true;
+    sendBtn.disabled = true;
+
+    // Clear input
+    msgInput.value = '';
+    msgInput.style.height = 'auto';
+
+    // Hide welcome if still showing
+    welcomeMsg.classList.add('hidden');
+
+    // Add user bubble
+    addMessage('user', text);
+
+    // Show typing indicator
+    const typingEl = showTyping();
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, persona: state.persona }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json();
+      typingEl.remove();
+
+      if (isCrisisResponse(data.response)) {
+        addCrisisMessage(data.response);
+      } else {
+        addMessage('ai', data.response);
+      }
+
+    } catch (err) {
+      typingEl.remove();
+      showToast('⚠️ Could not reach Saathi backend. Make sure it\'s running on port 8000.');
+      addMessage('ai', 'I\'m having trouble connecting right now. Please check your connection and try again.');
+      console.error(err);
+    }
+
+    state.isSending = false;
+    sendBtn.disabled = msgInput.value.trim() === '';
+    msgInput.focus();
+  }
+
+  // ===================== UI BUILDERS =====================
+  function addMessage(role, text) {
+    const info = PERSONAS[state.persona] || {};
+    const now  = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const row = document.createElement('div');
+    row.className = `message-row ${role}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = `msg-avatar ${role}`;
+    avatar.textContent = role === 'ai' ? (info.icon || '🤖') : '🧑';
+
+    const bubble = document.createElement('div');
+
+    const msg = document.createElement('div');
+    msg.className = 'message-bubble';
+    msg.textContent = text;
+
+    const time = document.createElement('div');
+    time.className = 'msg-time';
+    time.textContent = now;
+
+    bubble.appendChild(msg);
+    bubble.appendChild(time);
+
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+
+    messagesArea.appendChild(row);
+    scrollToBottom();
+
+    state.messages.push({ role, text, time: now });
+  }
+
+  function addCrisisMessage(text) {
+    const row = document.createElement('div');
+    row.className = 'crisis-banner';
+    row.innerHTML = `<span class="crisis-icon">🆘</span><span>${text}</span>`;
+    messagesArea.appendChild(row);
+    scrollToBottom();
+  }
+
+  function showTyping() {
+    const wrap = document.createElement('div');
+    wrap.className = 'typing-indicator';
+
+    const info = PERSONAS[state.persona] || {};
+    const av = document.createElement('div');
+    av.className = 'msg-avatar ai';
+    av.textContent = info.icon || '🤖';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'typing-bubble';
+    bubble.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+
+    wrap.appendChild(av);
+    wrap.appendChild(bubble);
+    messagesArea.appendChild(wrap);
+    scrollToBottom();
+    return wrap;
+  }
+
+  function scrollToBottom() {
+    messagesArea.scrollTop = messagesArea.scrollHeight;
+  }
+
+  function isCrisisResponse(text) {
+    const triggers = ['reach out to someone', 'you are not alone', 'professional'];
+    return triggers.some(t => text.toLowerCase().includes(t));
+  }
+
+  // ===================== TOAST =====================
+  let toastTimer;
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
+  }
+</script>
+</body>
+</html>

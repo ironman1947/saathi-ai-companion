@@ -1,0 +1,52 @@
+# Saathi AI — Root .gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.eggs
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+env/
+
+# Environment variables (NEVER commit)
+.env
+.env.*
+!.env.example
+
+# Database
+*.db
+*.sqlite3
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp/
+.pnp.js
+
+# Build output
+frontend/dist/
+frontend/build/
+frontend/.next/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/

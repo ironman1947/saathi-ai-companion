@@ -41,8 +41,28 @@ function isCrisis(text) {
   );
 }
 
-function now() {
+function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function getStoredUser() {
+  try {
+    return localStorage.getItem("saathi_user_name") || null;
+  } catch {
+    return null;
+  }
+}
+
+function storeUser(name) {
+  try {
+    localStorage.setItem("saathi_user_name", name);
+  } catch {}
+}
+
+function clearStoredUser() {
+  try {
+    localStorage.removeItem("saathi_user_name");
+  } catch {}
 }
 
 // ─── Sub-components ───────────────────────────────────────────
@@ -57,6 +77,100 @@ function BgOrbs() {
   );
 }
 
+// ─── ONBOARDING SCREEN ────────────────────────────────────────
+function OnboardingScreen({ onComplete }) {
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 300);
+  }, []);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError("Please enter your name to continue.");
+      return;
+    }
+    if (trimmed.length < 2) {
+      setError("Name must be at least 2 characters.");
+      return;
+    }
+    setLoading(true);
+    storeUser(trimmed);
+    setTimeout(() => onComplete(trimmed), 400);
+  };
+
+  return (
+    <div className="screen" id="onboarding-screen">
+      <div className="onboarding-card">
+        <div className="onboarding-glow" />
+
+        <div className="hero-badge" style={{ marginBottom: "32px" }}>
+          <span className="dot" />
+          Emotional AI Companion
+        </div>
+
+        <div className="onboarding-icon">🌸</div>
+
+        <h1 className="onboarding-title">Welcome to Saathi</h1>
+        <p className="onboarding-subtitle">
+          Before we begin, what should I call you?
+        </p>
+
+        <form className="onboarding-form" onSubmit={handleSubmit} noValidate>
+          <div className={`name-input-wrap ${error ? "has-error" : ""}`}>
+            <input
+              ref={inputRef}
+              id="name-input"
+              type="text"
+              className="name-input"
+              placeholder="Your first name…"
+              value={name}
+              maxLength={32}
+              autoComplete="given-name"
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError("");
+              }}
+            />
+          </div>
+
+          {error && <div className="name-error">{error}</div>}
+
+          <button
+            type="submit"
+            id="onboarding-submit"
+            className={`onboarding-btn ${loading ? "loading" : ""}`}
+            disabled={loading}
+          >
+            {loading ? (
+              <span className="btn-loader" />
+            ) : (
+              <>
+                Let's begin
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                  <polyline points="12 5 19 12 12 19"/>
+                </svg>
+              </>
+            )}
+          </button>
+        </form>
+
+        <p className="onboarding-note">
+          Your name is stored locally and never shared.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── PERSONA SCREEN ───────────────────────────────────────────
 function PersonaCard({ personaKey, info, onSelect }) {
   return (
     <div
@@ -84,10 +198,30 @@ function PersonaCard({ personaKey, info, onSelect }) {
   );
 }
 
-function PersonaScreen({ onSelect }) {
+function PersonaScreen({ userName, onSelect, onLogout }) {
   return (
     <div className="screen" id="persona-screen">
       <div className="persona-screen-inner">
+        <div className="persona-topbar">
+          <div className="user-greeting">
+            <span className="user-avatar">
+              {userName.charAt(0).toUpperCase()}
+            </span>
+            <span>
+              Hey, <strong>{userName}</strong> 👋
+            </span>
+          </div>
+          <button className="logout-btn" onClick={onLogout} title="Switch user">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Switch user
+          </button>
+        </div>
+
         <div className="hero-header">
           <div className="hero-badge">
             <span className="dot" />
@@ -113,6 +247,7 @@ function PersonaScreen({ onSelect }) {
   );
 }
 
+// ─── CHAT SCREEN ──────────────────────────────────────────────
 function TypingIndicator({ icon }) {
   return (
     <div className="typing-indicator">
@@ -144,31 +279,74 @@ function MessageBubble({ msg, personaIcon }) {
       </div>
       <div className="bubble-wrap">
         <div className="message-bubble">{msg.text}</div>
-        <div className="msg-time">{msg.time}</div>
+        {msg.time && <div className="msg-time">{msg.time}</div>}
       </div>
     </div>
   );
 }
 
-function ChatScreen({ persona, onBack }) {
+function ChatScreen({ persona, userName, onBack }) {
   const info = PERSONAS[persona];
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [toastMsg, setToastMsg] = useState("");
   const [showToast, setShowToast] = useState(false);
   const textAreaRef = useRef(null);
   const messagesEndRef = useRef(null);
   const toastTimerRef = useRef(null);
 
-  // Send initial greeting once on mount
+  // Load chat history on mount
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setMessages([{ role: "ai", text: info.greeting, time: now() }]);
-    }, 450);
-    return () => clearTimeout(timer);
-  }, [info.greeting]);
+    let cancelled = false;
+
+    async function loadHistory() {
+      setIsLoadingHistory(true);
+      try {
+        const res = await fetch(`${BACKEND_URL}/history/${encodeURIComponent(userName)}?limit=30`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (cancelled) return;
+
+        // Filter to messages for this persona
+        const personaMsgs = data.messages.filter((m) => m.persona === persona);
+
+        if (personaMsgs.length > 0) {
+          const formatted = personaMsgs.map((m) => ({
+            role: m.role === "assistant" ? "ai" : "user",
+            text: m.message,
+            time: null, // no timestamp from DB for now
+            fromHistory: true,
+          }));
+          setMessages(formatted);
+        } else {
+          // No history — show greeting
+          setTimeout(() => {
+            if (!cancelled) {
+              setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
+            }
+          }, 300);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.warn("Could not load history:", err);
+        // Fallback to greeting
+        setTimeout(() => {
+          if (!cancelled) {
+            setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
+          }
+        }, 300);
+      } finally {
+        if (!cancelled) setIsLoadingHistory(false);
+      }
+    }
+
+    loadHistory();
+    return () => { cancelled = true; };
+  }, [persona, userName, info.greeting]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -179,7 +357,7 @@ function ChatScreen({ persona, onBack }) {
     setToastMsg(msg);
     setShowToast(true);
     clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setShowToast(false), 4000);
+    toastTimerRef.current = setTimeout(() => setShowToast(false), 4500);
   }, []);
 
   const handleInput = (e) => {
@@ -199,14 +377,18 @@ function ChatScreen({ persona, onBack }) {
     setInput("");
     if (textAreaRef.current) textAreaRef.current.style.height = "auto";
 
-    setMessages((prev) => [...prev, { role: "user", text, time: now() }]);
+    setMessages((prev) => [...prev, { role: "user", text, time: nowTime() }]);
     setIsTyping(true);
 
     try {
       const res = await fetch(`${BACKEND_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, persona }),
+        body: JSON.stringify({
+          user_id: userName,
+          message: text,
+          persona,
+        }),
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -217,23 +399,23 @@ function ChatScreen({ persona, onBack }) {
       if (isCrisis(data.response)) {
         setMessages((prev) => [
           ...prev,
-          { type: "crisis", text: data.response, time: now() },
+          { type: "crisis", text: data.response, time: nowTime() },
         ]);
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: "ai", text: data.response, time: now() },
+          { role: "ai", text: data.response, time: nowTime() },
         ]);
       }
     } catch (err) {
       setIsTyping(false);
-      triggerToast("⚠️ Could not reach Saathi backend. Make sure it's running on port 8000.");
+      triggerToast("⚠️ Could not reach Saathi backend. Please try again.");
       setMessages((prev) => [
         ...prev,
         {
           role: "ai",
           text: "I'm having trouble connecting right now. Please check your connection and try again.",
-          time: now(),
+          time: nowTime(),
         },
       ]);
       console.error(err);
@@ -241,7 +423,7 @@ function ChatScreen({ persona, onBack }) {
 
     setIsSending(false);
     textAreaRef.current?.focus();
-  }, [input, isSending, persona, triggerToast]);
+  }, [input, isSending, persona, userName, triggerToast]);
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -251,6 +433,7 @@ function ChatScreen({ persona, onBack }) {
   };
 
   const canSend = input.trim() !== "" && !isSending;
+  const showEmptyState = !isLoadingHistory && messages.length === 0;
 
   return (
     <div className="screen" id="chat-screen">
@@ -266,7 +449,7 @@ function ChatScreen({ persona, onBack }) {
               <div className="chat-persona-name">{info.name}</div>
               <div className="chat-persona-status">
                 <span className="status-dot" />
-                <span>Active · here for you</span>
+                <span>Chatting as <strong>{userName}</strong></span>
               </div>
             </div>
           </div>
@@ -275,7 +458,25 @@ function ChatScreen({ persona, onBack }) {
 
         {/* Messages */}
         <div className="messages-area" id="messages-area">
-          {messages.length === 0 && (
+
+          {/* History loading skeleton */}
+          {isLoadingHistory && (
+            <div className="history-loading">
+              <div className="history-skeleton" />
+              <div className="history-skeleton short" />
+              <div className="history-skeleton" style={{ alignSelf: "flex-end" }} />
+            </div>
+          )}
+
+          {/* History badge */}
+          {!isLoadingHistory && messages.some((m) => m.fromHistory) && (
+            <div className="history-badge">
+              <span>💬 Continuing your previous conversation</span>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {showEmptyState && (
             <div className="welcome-msg">
               <span className="welcome-icon">{info.icon}</span>
               <h3>{info.welcomeTitle}</h3>
@@ -297,7 +498,7 @@ function ChatScreen({ persona, onBack }) {
             <textarea
               ref={textAreaRef}
               className="message-input"
-              placeholder="Type a message…"
+              placeholder={`Message ${info.name}…`}
               rows={1}
               value={input}
               onChange={handleInput}
@@ -312,17 +513,9 @@ function ChatScreen({ persona, onBack }) {
               aria-label="Send message"
               id="send-btn"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13" />
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
@@ -340,19 +533,40 @@ function ChatScreen({ persona, onBack }) {
 
 // ─── Root App ─────────────────────────────────────────────────
 export default function App() {
+  const [userName, setUserName] = useState(() => getStoredUser());
   const [persona, setPersona] = useState(null);
 
-  const handleSelect = (p) => setPersona(p);
+  const handleOnboardingComplete = (name) => setUserName(name);
+
+  const handleLogout = () => {
+    clearStoredUser();
+    setUserName(null);
+    setPersona(null);
+  };
+
+  const handleSelectPersona = (p) => setPersona(p);
+
   const handleBack = () => setPersona(null);
 
   return (
     <div className="app">
       <BgOrbs />
 
-      {!persona ? (
-        <PersonaScreen onSelect={handleSelect} />
+      {!userName ? (
+        <OnboardingScreen onComplete={handleOnboardingComplete} />
+      ) : !persona ? (
+        <PersonaScreen
+          userName={userName}
+          onSelect={handleSelectPersona}
+          onLogout={handleLogout}
+        />
       ) : (
-        <ChatScreen key={persona} persona={persona} onBack={handleBack} />
+        <ChatScreen
+          key={`${userName}-${persona}`}
+          persona={persona}
+          userName={userName}
+          onBack={handleBack}
+        />
       )}
     </div>
   );

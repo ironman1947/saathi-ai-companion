@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import "./App.css";
 
 // ─── Constants ────────────────────────────────────────────────
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = "https://saathi-ai-companion-e0x0.onrender.com";
 
 const PERSONAS = {
   supportive_friend: {

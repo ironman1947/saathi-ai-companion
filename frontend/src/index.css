@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500&display=swap');
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-deep:        #0a0a14;
+  --bg-surface:     #12121f;
+  --bg-glass:       rgba(255, 255, 255, 0.04);
+  --bg-glass-hover: rgba(255, 255, 255, 0.08);
+  --border-glass:   rgba(255, 255, 255, 0.1);
+  --border-glow:    rgba(139, 92, 246, 0.4);
+
+  --accent-purple: #8b5cf6;
+  --accent-violet: #7c3aed;
+  --accent-indigo: #6366f1;
+  --accent-pink:   #ec4899;
+  --accent-cyan:   #06b6d4;
+  --accent-amber:  #f59e0b;
+
+  --text-primary:   #f1f0ff;
+  --text-secondary: #a09dc0;
+  --text-muted:     #6b6880;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+
+  --shadow-glow: 0 0 40px rgba(139, 92, 246, 0.2);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  font-family: 'Outfit', sans-serif;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  overflow: hidden;
+}

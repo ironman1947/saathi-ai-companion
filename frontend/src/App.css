@@ -294,6 +294,7 @@
   height: 100vh;
   display: flex;
   overflow: hidden;
+  position: relative;
 }
 
 /* Sidebar wrapper */
@@ -307,6 +308,26 @@
 
 .sidebar-wrap.closed {
   width: 0;
+}
+
+/* Mobile: sidebar becomes a fixed overlay instead of taking horizontal space */
+@media (max-width: 640px) {
+  .sidebar-wrap {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 100;
+    width: 0;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .sidebar-wrap.open {
+    width: 260px;
+    box-shadow: 4px 0 32px rgba(0, 0, 0, 0.6);
+  }
+  .sidebar-wrap.closed {
+    width: 0;
+  }
 }
 
 /* The sidebar itself */
@@ -634,6 +655,8 @@
 .messages-area {
   flex: 1;
   overflow-y: auto;
+  /* Ensure messages never push input area off-screen */
+  min-height: 0;
   padding: 24px 24px 16px;
   display: flex;
   flex-direction: column;
@@ -813,6 +836,9 @@
   backdrop-filter: blur(24px);
   border-top: 1px solid var(--border-glass);
   flex-shrink: 0;
+  /* Never let input area shrink or disappear */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .input-row {
@@ -824,6 +850,9 @@
   border-radius: 20px;
   padding: 10px 10px 10px 18px;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  /* Critical: prevent children from overflowing */
+  width: 100%;
+  min-width: 0;
 }
 
 .input-row:focus-within {
@@ -833,6 +862,8 @@
 
 .message-input {
   flex: 1;
+  /* Critical: allow shrinking so send button always visible */
+  min-width: 0;
   background: none;
   border: none;
   outline: none;
@@ -1206,4 +1237,123 @@
 @keyframes shimmer {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+/* ===================== MOBILE BREAKPOINTS ===================== */
+@media (max-width: 768px) {
+  /* Chat header: tighter on mobile */
+  .chat-header {
+    padding: 12px 14px;
+    gap: 8px;
+  }
+
+  /* Messages area: tighter padding */
+  .messages-area {
+    padding: 16px 14px 12px;
+    gap: 12px;
+  }
+
+  /* Message bubbles: slightly wider on mobile */
+  .bubble-wrap {
+    max-width: 85%;
+  }
+
+  /* Input area: tighter on mobile */
+  .input-area {
+    padding: 10px 12px 14px;
+  }
+
+  /* Input row stays horizontal — never stack vertically */
+  .input-row {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 8px 8px 8px 14px;
+    gap: 8px;
+  }
+
+  /* Input text: readable font size */
+  .message-input {
+    font-size: 16px; /* prevents iOS auto-zoom */
+    min-width: 0;
+  }
+
+  /* Send button: always visible and fixed size */
+  .send-btn {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  /* Persona screen: stack cards */
+  .personas-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    max-width: 100%;
+  }
+
+  .persona-card {
+    padding: 24px 20px;
+  }
+
+  .persona-screen-inner {
+    padding: 16px;
+  }
+
+  .hero-header {
+    margin-bottom: 28px;
+  }
+
+  .persona-topbar {
+    margin-bottom: 20px;
+  }
+
+  /* Onboarding card: full-width on small screens */
+  .onboarding-card {
+    padding: 40px 24px;
+  }
+
+  #onboarding-screen {
+    padding: 16px;
+  }
+
+  /* Sidebar: hide persona name label to save space in header */
+  .chat-persona-status {
+    font-size: 0.65rem;
+  }
+
+  /* Toast: full width */
+  .toast {
+    white-space: normal;
+    width: calc(100vw - 32px);
+    text-align: center;
+  }
+}
+
+/* Below 400px (very small phones) */
+@media (max-width: 400px) {
+  .chat-header {
+    padding: 10px 10px;
+    gap: 6px;
+  }
+
+  .sidebar-toggle,
+  .back-btn,
+  .header-menu {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .chat-persona-name {
+    font-size: 0.85rem;
+  }
+
+  .messages-area {
+    padding: 12px 10px;
+  }
+
+  .input-area {
+    padding: 8px 10px 10px;
+  }
 }

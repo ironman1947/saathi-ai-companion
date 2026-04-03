@@ -47,7 +47,23 @@ function storeUser(name) {
   try { localStorage.setItem("saathi_user_name", name); } catch {}
 }
 function clearStoredUser() {
-  try { localStorage.removeItem("saathi_user_name"); } catch {}
+  try {
+    localStorage.removeItem("saathi_user_name");
+    // DO NOT remove user_id — it persists for data isolation
+  } catch {}
+}
+// Returns a stable random user_id (created once, never changes).
+function getOrCreateUserId() {
+  try {
+    let uid = localStorage.getItem("saathi_user_id");
+    if (!uid) {
+      uid = "user_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+      localStorage.setItem("saathi_user_id", uid);
+    }
+    return uid;
+  } catch {
+    return "user_" + Date.now();
+  }
 }
 function formatDate(isoStr) {
   if (!isoStr) return "";
@@ -250,7 +266,7 @@ function MessageBubble({ msg, personaIcon }) {
 }
 
 // ─── CHAT SCREEN ──────────────────────────────────────────────
-function ChatScreen({ persona, userName, onBack }) {
+function ChatScreen({ persona, userName, userId, onBack }) {
   const info = PERSONAS[persona];
 
   // Session state
@@ -287,7 +303,7 @@ function ChatScreen({ persona, userName, onBack }) {
     async function loadSessions() {
       setSessionsLoading(true);
       try {
-        const res = await fetch(`${BACKEND_URL}/sessions/${encodeURIComponent(userName)}?persona=${persona}`);
+        const res = await fetch(`${BACKEND_URL}/sessions/${encodeURIComponent(userId)}?persona=${persona}`);
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (cancelled) return;
@@ -328,7 +344,7 @@ function ChatScreen({ persona, userName, onBack }) {
     const res = await fetch(`${BACKEND_URL}/sessions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userName, persona }),
+      body: JSON.stringify({ user_id: userId, persona }),
     });
     if (!res.ok) throw new Error("Could not create session");
     return await res.json();
@@ -403,7 +419,7 @@ function ChatScreen({ persona, userName, onBack }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id:    userName,
+          user_id:    userId,
           session_id: currentSession.id,
           message:    text,
           persona,
@@ -552,6 +568,8 @@ function ChatScreen({ persona, userName, onBack }) {
 export default function App() {
   const [userName, setUserName] = useState(() => getStoredUser());
   const [persona, setPersona] = useState(null);
+  // Stable random user_id — created once per device, never changes
+  const userId = getOrCreateUserId();
 
   return (
     <div className="app">
@@ -566,9 +584,10 @@ export default function App() {
         />
       ) : (
         <ChatScreen
-          key={`${userName}-${persona}`}
+          key={`${userId}-${persona}`}
           persona={persona}
           userName={userName}
+          userId={userId}
           onBack={() => setPersona(null)}
         />
       )}

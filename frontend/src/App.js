@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { auth, provider } from "./firebase";
 import "./App.css";
 
 // ─── Constants ────────────────────────────────────────────────
@@ -40,31 +42,6 @@ function isCrisis(text) {
 function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
-function getStoredUser() {
-  try { return localStorage.getItem("saathi_user_name") || null; } catch { return null; }
-}
-function storeUser(name) {
-  try { localStorage.setItem("saathi_user_name", name); } catch {}
-}
-function clearStoredUser() {
-  try {
-    localStorage.removeItem("saathi_user_name");
-    // DO NOT remove user_id — it persists for data isolation
-  } catch {}
-}
-// Returns a stable random user_id (created once, never changes).
-function getOrCreateUserId() {
-  try {
-    let uid = localStorage.getItem("saathi_user_id");
-    if (!uid) {
-      uid = "user_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
-      localStorage.setItem("saathi_user_id", uid);
-    }
-    return uid;
-  } catch {
-    return "user_" + Date.now();
-  }
-}
 function formatDate(isoStr) {
   if (!isoStr) return "";
   try {
@@ -87,25 +64,31 @@ function BgOrbs() {
   );
 }
 
-// ─── ONBOARDING ───────────────────────────────────────────────
-function OnboardingScreen({ onComplete }) {
-  const [name, setName] = useState("");
-  const [error, setError] = useState("");
+// ─── LOGIN SCREEN ─────────────────────────────────────────────
+function LoginScreen({ onLogin }) {
   const [loading, setLoading] = useState(false);
-  const inputRef = useRef(null);
-  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 300); }, []);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed || trimmed.length < 2) { setError("Please enter at least 2 characters."); return; }
+  const handleLogin = async () => {
     setLoading(true);
-    storeUser(trimmed);
-    setTimeout(() => onComplete(trimmed), 400);
+    setError("");
+    try {
+      const result = await signInWithPopup(auth, provider);
+      onLogin(result.user);
+    } catch (err) {
+      console.error("Login error:", err);
+      if (err.code === "auth/popup-closed-by-user") {
+        setError("Sign-in was cancelled. Please try again.");
+      } else {
+        setError("Couldn't sign in. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="screen" id="onboarding-screen">
+    <div className="screen" id="login-screen">
       <div className="onboarding-card">
         <div className="onboarding-glow" />
         <div className="hero-badge" style={{ marginBottom: "32px" }}>
@@ -113,41 +96,61 @@ function OnboardingScreen({ onComplete }) {
         </div>
         <div className="onboarding-icon">🌸</div>
         <h1 className="onboarding-title">Welcome to Saathi</h1>
-        <p className="onboarding-subtitle">Before we begin, what should I call you?</p>
-        <form className="onboarding-form" onSubmit={handleSubmit} noValidate>
-          <div className={`name-input-wrap ${error ? "has-error" : ""}`}>
-            <input ref={inputRef} id="name-input" type="text" className="name-input"
-              placeholder="Your first name…" value={name} maxLength={32}
-              onChange={(e) => { setName(e.target.value); if (error) setError(""); }} />
-          </div>
-          {error && <div className="name-error">{error}</div>}
-          <button type="submit" id="onboarding-submit"
-            className={`onboarding-btn ${loading ? "loading" : ""}`} disabled={loading}>
-            {loading ? <span className="btn-loader" /> : <>Let's begin <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></>}
-          </button>
-        </form>
-        <p className="onboarding-note">Your name is stored locally and never shared.</p>
+        <p className="onboarding-subtitle">
+          Sign in to keep your conversations private and synced across all your devices.
+        </p>
+
+        <button
+          id="google-login-btn"
+          className={`google-login-btn ${loading ? "loading" : ""}`}
+          onClick={handleLogin}
+          disabled={loading}
+        >
+          {loading ? (
+            <span className="btn-loader" />
+          ) : (
+            <>
+              <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              Continue with Google
+            </>
+          )}
+        </button>
+
+        {error && <div className="name-error" style={{ marginTop: "12px" }}>{error}</div>}
+
+        <p className="onboarding-note">
+          Your data is tied to your Google account — safe, private, and synced everywhere.
+        </p>
       </div>
     </div>
   );
 }
 
 // ─── PERSONA SCREEN ───────────────────────────────────────────
-function PersonaScreen({ userName, onSelect, onLogout }) {
+function PersonaScreen({ userName, userPhoto, onSelect, onLogout }) {
   return (
     <div className="screen" id="persona-screen">
       <div className="persona-screen-inner">
         <div className="persona-topbar">
           <div className="user-greeting">
-            <span className="user-avatar">{userName.charAt(0).toUpperCase()}</span>
-            Hey, <strong>{userName}</strong> 👋
+            {userPhoto ? (
+              <img src={userPhoto} alt={userName} className="user-avatar-photo" />
+            ) : (
+              <span className="user-avatar">{userName.charAt(0).toUpperCase()}</span>
+            )}
+            Hey, <strong>{userName.split(" ")[0]}</strong> 👋
           </div>
           <button className="logout-btn" onClick={onLogout}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
               <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
             </svg>
-            Switch user
+            Sign out
           </button>
         </div>
         <div className="hero-header">
@@ -177,7 +180,7 @@ function PersonaScreen({ userName, onSelect, onLogout }) {
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────
-function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, persona, userName, isLoading }) {
+function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, persona, userName, userPhoto, isLoading }) {
   const info = PERSONAS[persona];
   return (
     <div className="sidebar">
@@ -225,8 +228,12 @@ function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, perso
 
       <div className="sidebar-footer">
         <div className="sidebar-user">
-          <span className="sidebar-user-avatar">{userName.charAt(0).toUpperCase()}</span>
-          <span className="sidebar-user-name">{userName}</span>
+          {userPhoto ? (
+            <img src={userPhoto} alt={userName} className="sidebar-user-avatar-photo" />
+          ) : (
+            <span className="sidebar-user-avatar">{userName.charAt(0).toUpperCase()}</span>
+          )}
+          <span className="sidebar-user-name">{userName.split(" ")[0]}</span>
         </div>
       </div>
     </div>
@@ -266,7 +273,7 @@ function MessageBubble({ msg, personaIcon }) {
 }
 
 // ─── CHAT SCREEN ──────────────────────────────────────────────
-function ChatScreen({ persona, userName, userId, onBack }) {
+function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
   const info = PERSONAS[persona];
 
   // Session state
@@ -310,11 +317,9 @@ function ChatScreen({ persona, userName, userId, onBack }) {
         setSessions(data.sessions);
 
         if (data.sessions.length > 0) {
-          // Resume most recent session
           await loadSessionMessages(data.sessions[0], cancelled);
           if (!cancelled) setCurrentSession(data.sessions[0]);
         } else {
-          // Create first session
           const newSession = await createSession();
           if (cancelled) return;
           setSessions([newSession]);
@@ -323,7 +328,6 @@ function ChatScreen({ persona, userName, userId, onBack }) {
         }
       } catch {
         if (cancelled) return;
-        // Fallback: create a session
         try {
           const newSession = await createSession();
           if (!cancelled) {
@@ -338,7 +342,7 @@ function ChatScreen({ persona, userName, userId, onBack }) {
     }
     loadSessions();
     return () => { cancelled = true; };
-  }, [persona, userName]); // eslint-disable-line
+  }, [persona, userId]); // eslint-disable-line
 
   const createSession = async () => {
     const res = await fetch(`${BACKEND_URL}/sessions`, {
@@ -390,7 +394,7 @@ function ChatScreen({ persona, userName, userId, onBack }) {
     } catch {
       triggerToast("⚠️ Could not create new chat. Try again.");
     }
-  }, [persona, userName, info.greeting, triggerToast]); // eslint-disable-line
+  }, [persona, userId, info.greeting, triggerToast]); // eslint-disable-line
 
   // Scroll to bottom
   useEffect(() => {
@@ -435,7 +439,6 @@ function ChatScreen({ persona, userName, userId, onBack }) {
         setMessages((prev) => [...prev, { role: "ai", text: data.response, time: nowTime() }]);
       }
 
-      // Update session title in sidebar (backend does it, we just refresh the title locally)
       setSessions((prev) =>
         prev.map((s) =>
           s.id === currentSession.id && s.title === "New Chat"
@@ -459,7 +462,7 @@ function ChatScreen({ persona, userName, userId, onBack }) {
 
     setIsSending(false);
     textAreaRef.current?.focus();
-  }, [input, isSending, currentSession, persona, userName, triggerToast]);
+  }, [input, isSending, currentSession, persona, userId, triggerToast]);
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (input.trim()) sendMessage(); }
@@ -480,6 +483,7 @@ function ChatScreen({ persona, userName, userId, onBack }) {
             onNewChat={handleNewChat}
             persona={persona}
             userName={userName}
+            userPhoto={userPhoto}
             isLoading={sessionsLoading}
           />
         </div>
@@ -501,7 +505,7 @@ function ChatScreen({ persona, userName, userId, onBack }) {
                 <div className="chat-persona-name">{info.name}</div>
                 <div className="chat-persona-status">
                   <span className="status-dot" />
-                  <span>Chatting as <strong>{userName}</strong></span>
+                  <span>Chatting as <strong>{userName.split(" ")[0]}</strong></span>
                 </div>
               </div>
             </div>
@@ -566,27 +570,65 @@ function ChatScreen({ persona, userName, userId, onBack }) {
 
 // ─── Root App ─────────────────────────────────────────────────
 export default function App() {
-  const [userName, setUserName] = useState(() => getStoredUser());
+  // null = loading, false = logged out, object = Firebase user
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [persona, setPersona] = useState(null);
-  // Stable random user_id — created once per device, never changes
-  const userId = getOrCreateUserId();
+
+  // Persist auth state across page refreshes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user || false);
+      setAuthLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleLogin = (user) => {
+    setFirebaseUser(user);
+    setPersona(null);
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    setFirebaseUser(false);
+    setPersona(null);
+  };
+
+  // ─── Render loading spinner while Firebase resolves auth ───
+  if (authLoading) {
+    return (
+      <div className="app">
+        <BgOrbs />
+        <div className="auth-loading">
+          <span className="btn-loader" style={{ width: 32, height: 32, borderWidth: 3 }} />
+        </div>
+      </div>
+    );
+  }
+
+  const userId   = firebaseUser ? firebaseUser.uid : null;
+  const userName = firebaseUser ? (firebaseUser.displayName || "Friend") : null;
+  const userPhoto = firebaseUser ? firebaseUser.photoURL : null;
 
   return (
     <div className="app">
       <BgOrbs />
-      {!userName ? (
-        <OnboardingScreen onComplete={(name) => setUserName(name)} />
+      {!firebaseUser ? (
+        <LoginScreen onLogin={handleLogin} />
       ) : !persona ? (
         <PersonaScreen
           userName={userName}
+          userPhoto={userPhoto}
           onSelect={(p) => setPersona(p)}
-          onLogout={() => { clearStoredUser(); setUserName(null); setPersona(null); }}
+          onLogout={handleLogout}
         />
       ) : (
         <ChatScreen
           key={`${userId}-${persona}`}
           persona={persona}
           userName={userName}
+          userPhoto={userPhoto}
           userId={userId}
           onBack={() => setPersona(null)}
         />

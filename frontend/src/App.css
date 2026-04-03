@@ -1127,6 +1127,79 @@
   line-height: 1.5;
 }
 
+/* ===================== GOOGLE LOGIN BUTTON ===================== */
+.google-login-btn {
+  margin-top: 28px;
+  width: 100%;
+  padding: 14px 24px;
+  background: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  color: #3c4043;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.2s ease,
+              background 0.2s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.google-login-btn:hover:not(:disabled) {
+  background: #f8f8f8;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+}
+
+.google-login-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.google-login-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.google-login-btn.loading {
+  pointer-events: none;
+  background: rgba(255,255,255,0.1);
+  color: transparent;
+}
+
+/* ===================== USER PHOTO AVATAR ===================== */
+.user-avatar-photo {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(139, 92, 246, 0.4);
+  flex-shrink: 0;
+}
+
+.sidebar-user-avatar-photo {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  flex-shrink: 0;
+}
+
+/* ===================== AUTH LOADING ===================== */
+.auth-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
 /* ===================== PERSONA TOPBAR ===================== */
 .persona-topbar {
   display: flex;

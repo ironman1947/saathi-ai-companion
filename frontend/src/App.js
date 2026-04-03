@@ -304,38 +304,80 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
     toastTimer.current = setTimeout(() => setShowToast(false), 4500);
   }, []);
 
+  // ── Retry-aware fetch (handles Render cold starts) ──
+  const fetchWithRetry = useCallback(async (url, options = {}, retries = 3) => {
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const res = await fetch(url, options);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      } catch (err) {
+        console.warn(`Fetch attempt ${attempt + 1}/${retries} failed for ${url}:`, err.message);
+        if (attempt < retries - 1) {
+          // Wait longer each retry: 2s, 4s — gives Render time to wake
+          await new Promise((r) => setTimeout(r, (attempt + 1) * 2000));
+        } else {
+          throw err;
+        }
+      }
+    }
+  }, []);
+
   // ── Load sessions on mount ──
   useEffect(() => {
     let cancelled = false;
     async function loadSessions() {
       setSessionsLoading(true);
       try {
-        const res = await fetch(`${BACKEND_URL}/sessions/${encodeURIComponent(userId)}?persona=${persona}`);
-        if (!res.ok) throw new Error();
-        const data = await res.json();
+        const data = await fetchWithRetry(
+          `${BACKEND_URL}/sessions/${encodeURIComponent(userId)}?persona=${persona}`
+        );
         if (cancelled) return;
         setSessions(data.sessions);
 
         if (data.sessions.length > 0) {
+          // Load the most recent session's messages
           await loadSessionMessages(data.sessions[0], cancelled);
           if (!cancelled) setCurrentSession(data.sessions[0]);
         } else {
+          // No sessions yet — check if there are legacy (pre-session) messages
+          try {
+            const legacy = await fetchWithRetry(
+              `${BACKEND_URL}/history/${encodeURIComponent(userId)}?limit=50`
+            );
+            if (!cancelled && legacy.messages && legacy.messages.length > 0) {
+              // Migrate: create session and show old messages
+              const newSession = await createSession();
+              if (cancelled) return;
+              setSessions([newSession]);
+              setCurrentSession(newSession);
+              setMessages(
+                legacy.messages.map((m) => ({
+                  role: m.role === "assistant" ? "ai" : "user",
+                  text: m.message,
+                  time: null,
+                  fromHistory: true,
+                }))
+              );
+              return;  // skip the greeting since we have history
+            }
+          } catch {
+            // Legacy endpoint failed — that's fine, just start fresh
+          }
+
+          // Truly new user — create first session with greeting
           const newSession = await createSession();
           if (cancelled) return;
           setSessions([newSession]);
           setCurrentSession(newSession);
           setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
         }
-      } catch {
-        if (cancelled) return;
-        try {
-          const newSession = await createSession();
-          if (!cancelled) {
-            setSessions([newSession]);
-            setCurrentSession(newSession);
-            setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
-          }
-        } catch {}
+      } catch (err) {
+        // All retries exhausted — show error state instead of silently losing history
+        console.error("Failed to load sessions after retries:", err);
+        if (!cancelled) {
+          triggerToast("⚠️ Backend is waking up… please wait a moment and refresh.");
+        }
       } finally {
         if (!cancelled) setSessionsLoading(false);
       }
@@ -357,9 +399,7 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
   const loadSessionMessages = async (session, cancelled = false) => {
     setMessagesLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/session-history/${session.id}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      const data = await fetchWithRetry(`${BACKEND_URL}/session-history/${session.id}`);
       if (cancelled) return;
       if (data.messages.length === 0) {
         setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
@@ -373,8 +413,12 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
           }))
         );
       }
-    } catch {
-      if (!cancelled) setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
+    } catch (err) {
+      console.error("Failed to load session messages:", err);
+      if (!cancelled) {
+        triggerToast("⚠️ Could not load chat history. Try refreshing.");
+        setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
+      }
     } finally {
       if (!cancelled) setMessagesLoading(false);
     }

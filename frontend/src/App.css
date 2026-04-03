@@ -3,6 +3,7 @@
   position: relative;
   width: 100vw;
   height: 100vh;
+  height: 100dvh; /* fixes mobile browser address-bar height */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -69,6 +70,9 @@
   justify-content: center;
   z-index: 1;
   transition: opacity 0.5s ease, transform 0.5s ease;
+  overflow-y: auto;  /* allow scrolling on persona/login screens */
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .screen.hidden {
@@ -292,6 +296,7 @@
 .chat-layout {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   display: flex;
   overflow: hidden;
   position: relative;
@@ -311,22 +316,41 @@
 }
 
 /* Mobile: sidebar becomes a fixed overlay instead of taking horizontal space */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .sidebar-wrap {
     position: fixed;
     top: 0;
     left: 0;
     height: 100vh;
-    z-index: 100;
+    height: 100dvh;
+    z-index: 200;
     width: 0;
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .sidebar-wrap.open {
-    width: 260px;
+    width: 280px;
     box-shadow: 4px 0 32px rgba(0, 0, 0, 0.6);
   }
   .sidebar-wrap.closed {
     width: 0;
+  }
+  .sidebar {
+    width: 280px;
+  }
+}
+
+/* Sidebar backdrop — only visible on mobile */
+.sidebar-backdrop {
+  display: none;
+}
+@media (max-width: 768px) {
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 150;
+    animation: fadeIn 0.2s ease both;
   }
 }
 
@@ -334,9 +358,10 @@
 .sidebar {
   width: 240px;
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: rgba(10, 10, 20, 0.7);
+  background: rgba(10, 10, 20, 0.95);
   border-right: 1px solid var(--border-glass);
   backdrop-filter: blur(24px);
   flex-shrink: 0;
@@ -521,6 +546,7 @@
   flex: 1;
   min-width: 0;
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1316,24 +1342,70 @@
 @media (max-width: 768px) {
   /* Chat header: tighter on mobile */
   .chat-header {
-    padding: 12px 14px;
+    padding: 10px 12px;
     gap: 8px;
+  }
+
+  /* Hide back button text, keep it compact */
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+  .sidebar-toggle {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+  .header-menu {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  /* Persona avatar smaller in header */
+  .chat-persona-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    font-size: 17px;
+  }
+  .chat-persona-name {
+    font-size: 0.88rem;
+  }
+  .chat-persona-info {
+    gap: 8px;
+  }
+  .chat-persona-status {
+    font-size: 0.65rem;
   }
 
   /* Messages area: tighter padding */
   .messages-area {
-    padding: 16px 14px 12px;
-    gap: 12px;
+    padding: 14px 12px 10px;
+    gap: 10px;
   }
 
   /* Message bubbles: slightly wider on mobile */
   .bubble-wrap {
-    max-width: 85%;
+    max-width: 88%;
+  }
+  .message-bubble {
+    padding: 10px 14px;
+    font-size: 0.88rem;
+  }
+  .msg-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+    border-radius: 8px;
   }
 
   /* Input area: tighter on mobile */
   .input-area {
-    padding: 10px 12px 14px;
+    padding: 8px 10px 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
 
   /* Input row stays horizontal — never stack vertically */
@@ -1342,20 +1414,27 @@
     flex-wrap: nowrap;
     padding: 8px 8px 8px 14px;
     gap: 8px;
+    border-radius: 16px;
   }
 
-  /* Input text: readable font size */
+  /* Input text: 16px prevents iOS auto-zoom */
   .message-input {
-    font-size: 16px; /* prevents iOS auto-zoom */
+    font-size: 16px;
     min-width: 0;
   }
 
   /* Send button: always visible and fixed size */
   .send-btn {
     flex-shrink: 0;
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     border-radius: 12px;
+  }
+
+  /* Input hint: smaller */
+  .input-hint {
+    font-size: 10px;
+    margin-top: 6px;
   }
 
   /* Persona screen: stack cards */
@@ -1371,28 +1450,39 @@
 
   .persona-screen-inner {
     padding: 16px;
+    align-items: center;
+  }
+
+  /* Persona screen should scroll if tall */
+  #persona-screen {
+    align-items: flex-start;
+    padding-top: 20px;
+    padding-bottom: 40px;
   }
 
   .hero-header {
-    margin-bottom: 28px;
+    margin-bottom: 24px;
+  }
+  .hero-title {
+    font-size: clamp(1.6rem, 6vw, 2.4rem);
   }
 
   .persona-topbar {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
   }
 
-  /* Onboarding card: full-width on small screens */
+  /* Login card: full-width on small screens */
   .onboarding-card {
-    padding: 40px 24px;
+    padding: 36px 20px;
+    max-width: 100%;
+    border-radius: var(--radius-lg);
   }
-
-  #onboarding-screen {
+  #login-screen {
     padding: 16px;
   }
-
-  /* Sidebar: hide persona name label to save space in header */
-  .chat-persona-status {
-    font-size: 0.65rem;
+  .onboarding-subtitle {
+    margin-bottom: 24px;
+    font-size: 0.88rem;
   }
 
   /* Toast: full width */
@@ -1400,33 +1490,70 @@
     white-space: normal;
     width: calc(100vw - 32px);
     text-align: center;
+    font-size: 0.8rem;
+    bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  /* Logout button: compact */
+  .logout-btn {
+    padding: 6px 10px;
+    font-size: 0.72rem;
+  }
+
+  /* User greeting */
+  .user-greeting {
+    font-size: 0.82rem;
   }
 }
 
 /* Below 400px (very small phones) */
 @media (max-width: 400px) {
   .chat-header {
-    padding: 10px 10px;
-    gap: 6px;
+    padding: 8px 8px;
+    gap: 5px;
   }
 
   .sidebar-toggle,
   .back-btn,
   .header-menu {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  /* Hide the persona avatar in chat header to save space */
+  .chat-persona-avatar {
+    display: none;
   }
 
   .chat-persona-name {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
   }
 
   .messages-area {
-    padding: 12px 10px;
+    padding: 10px 8px;
   }
 
   .input-area {
-    padding: 8px 10px 10px;
+    padding: 6px 8px 10px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .send-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .bubble-wrap {
+    max-width: 92%;
+  }
+
+  .onboarding-card {
+    padding: 28px 16px;
+  }
+
+  .google-login-btn {
+    padding: 12px 16px;
+    font-size: 0.88rem;
   }
 }

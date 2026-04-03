@@ -287,7 +287,7 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 768);
 
   // Toast
   const [toastMsg, setToastMsg] = useState("");
@@ -383,6 +383,8 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
   const handleSelectSession = useCallback(async (session) => {
     setCurrentSession(session);
     await loadSessionMessages(session);
+    // Close sidebar on mobile after selecting a session
+    if (window.innerWidth <= 768) setSidebarOpen(false);
   }, []); // eslint-disable-line
 
   const handleNewChat = useCallback(async () => {
@@ -473,6 +475,11 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
   return (
     <div className="screen" id="chat-screen">
       <div className="chat-layout">
+
+        {/* Mobile sidebar backdrop */}
+        {sidebarOpen && (
+          <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+        )}
 
         {/* Sidebar */}
         <div className={`sidebar-wrap ${sidebarOpen ? "open" : "closed"}`}>

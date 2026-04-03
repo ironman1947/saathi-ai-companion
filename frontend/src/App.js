@@ -327,16 +327,19 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
   useEffect(() => {
     let cancelled = false;
     async function loadSessions() {
+      console.log("[Saathi Debug] Loading sessions for userId:", userId, "persona:", persona);
       setSessionsLoading(true);
       try {
         const data = await fetchWithRetry(
           `${BACKEND_URL}/sessions/${encodeURIComponent(userId)}?persona=${persona}`
         );
         if (cancelled) return;
+        console.log("[Saathi Debug] Sessions found:", data.sessions.length, data.sessions);
         setSessions(data.sessions);
 
         if (data.sessions.length > 0) {
           // Load the most recent session's messages
+          console.log("[Saathi Debug] Loading messages for session:", data.sessions[0].id, data.sessions[0].title);
           await loadSessionMessages(data.sessions[0], cancelled);
           if (!cancelled) setCurrentSession(data.sessions[0]);
         } else {
@@ -400,8 +403,10 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
     setMessagesLoading(true);
     try {
       const data = await fetchWithRetry(`${BACKEND_URL}/session-history/${session.id}`);
+      console.log("[Saathi Debug] Session", session.id, "messages loaded:", data.messages.length);
       if (cancelled) return;
       if (data.messages.length === 0) {
+        console.log("[Saathi Debug] No messages in session, showing greeting");
         setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
       } else {
         setMessages(
@@ -629,6 +634,7 @@ export default function App() {
   // Persist auth state across page refreshes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log("[Saathi Debug] Auth state changed:", user ? `UID=${user.uid}, Name=${user.displayName}` : "logged out");
       setFirebaseUser(user || false);
       setAuthLoading(false);
     });

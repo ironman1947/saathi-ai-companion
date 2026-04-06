@@ -180,7 +180,7 @@ function PersonaScreen({ userName, userPhoto, onSelect, onLogout }) {
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────
-function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, persona, userName, userPhoto, isLoading }) {
+function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, onDeleteSession, persona, userName, userPhoto, isLoading }) {
   const info = PERSONAS[persona];
   return (
     <div className="sidebar">
@@ -210,11 +210,14 @@ function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, perso
           <div className="session-empty">No past chats yet</div>
         )}
         {!isLoading && sessions.map((s) => (
-          <button
+          <div
             key={s.id}
             className={`session-item ${s.id === currentSessionId ? "active" : ""}`}
             onClick={() => onSelectSession(s)}
             title={s.title}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter") onSelectSession(s); }}
           >
             <div className="session-item-icon">{info.icon}</div>
             <div className="session-item-body">
@@ -222,7 +225,20 @@ function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, perso
               <div className="session-item-time">{formatDate(s.created_at)}</div>
             </div>
             {s.id === currentSessionId && <div className="session-active-dot" />}
-          </button>
+            <button
+              className="session-delete-btn"
+              title="Delete chat"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteSession(s.id);
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            </button>
+          </div>
         ))}
       </div>
 
@@ -447,6 +463,21 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
     }
   }, [createSession, info.greeting, triggerToast]);
 
+  const handleDeleteSession = useCallback(async (sessionId) => {
+    if (!window.confirm("Delete this chat? This cannot be undone.")) return;
+    try {
+      await fetch(`${BACKEND_URL}/sessions/${sessionId}`, { method: "DELETE" });
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      if (currentSession?.id === sessionId) {
+        setCurrentSession(null);
+        setMessages([]);
+      }
+      triggerToast("🗑️ Chat deleted.");
+    } catch {
+      triggerToast("⚠️ Could not delete chat. Try again.");
+    }
+  }, [currentSession, triggerToast]);
+
   // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -537,6 +568,7 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
             currentSessionId={currentSession?.id}
             onSelectSession={handleSelectSession}
             onNewChat={handleNewChat}
+            onDeleteSession={handleDeleteSession}
             persona={persona}
             userName={userName}
             userPhoto={userPhoto}

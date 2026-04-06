@@ -487,6 +487,46 @@
   flex-shrink: 0;
 }
 
+.session-delete-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.session-item:hover .session-delete-btn {
+  opacity: 1;
+}
+
+.session-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.session-delete-btn:active {
+  background: rgba(239, 68, 68, 0.25);
+  transform: translateY(-50%) scale(0.92);
+}
+
+@media (max-width: 768px) {
+  .session-delete-btn {
+    opacity: 0.7;
+  }
+}
+
 .session-empty {
   text-align: center;
   font-size: 0.78rem;

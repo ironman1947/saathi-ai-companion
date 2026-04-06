@@ -12,20 +12,8 @@ from models import Chat, Session
 
 load_dotenv()
 
-# ---------- Create tables + migrate existing DB ----------
+# ---------- Create tables on Supabase PostgreSQL ----------
 Base.metadata.create_all(bind=engine)
-
-# SQLite-only migration: add session_id column to chats if it doesn't exist yet
-# (PostgreSQL gets the correct schema from create_all above)
-import os
-if os.getenv("DATABASE_URL", "").startswith("sqlite") or not os.getenv("DATABASE_URL"):
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE chats ADD COLUMN session_id INTEGER"))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists — safe to ignore
 
 app = FastAPI(title="Saathi AI", description="Emotional Reflection Companion API")
 

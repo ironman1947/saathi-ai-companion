@@ -10,13 +10,4 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: DATABASE_URL
-        fromDatabase:
-          name: saathi-db
-          property: connectionString
-
-databases:
-  - name: saathi-db
-    plan: free
-    databaseName: saathi
-    user: saathi_user
-
+        sync: false

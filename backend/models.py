@@ -21,3 +21,12 @@ class Chat(Base):
     role       = Column(String)    # "user" / "assistant"
     message    = Column(Text)
     persona    = Column(String)
+
+
+class Memory(Base):
+    __tablename__ = "memory"
+
+    id       = Column(Integer, primary_key=True, index=True)
+    user_id  = Column(String, index=True)
+    key      = Column(String)   # e.g. "name", "location", "hobby", "mood_pattern"
+    value    = Column(String)

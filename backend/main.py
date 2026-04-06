@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 from database import engine, Base, SessionLocal
-from models import Chat, Session
+from models import Chat, Session, Memory
 
 load_dotenv()
 
@@ -127,6 +127,82 @@ Give the user a clear, realistic grounding and help them figure out the practica
 def get_persona_prompt(persona: str) -> str:
     return PERSONA_PROMPTS.get(persona, PERSONA_PROMPTS["supportive_friend"])
 
+
+
+# ─── Memory Extraction ─────────────────────────────────────────
+def extract_memory(message):
+    """Extract important facts from a user message."""
+    msg = message.lower()
+    facts = []
+
+    if "my name is" in msg:
+        name = message.split("is")[-1].strip().rstrip(".!?,")
+        if name:
+            facts.append(("name", name))
+
+    if "i live in" in msg or "i'm from" in msg or "i am from" in msg:
+        for trigger in ["live in", "i'm from", "i am from"]:
+            if trigger in msg:
+                location = message.lower().split(trigger)[-1].strip().rstrip(".!?,")
+                if location:
+                    facts.append(("location", location.title()))
+                break
+
+    if "i am " in msg and "years old" in msg:
+        try:
+            age_part = msg.split("i am ")[1].split("years")[0].strip()
+            if age_part.isdigit():
+                facts.append(("age", age_part))
+        except (IndexError, ValueError):
+            pass
+
+    if "call me " in msg:
+        nickname = message.split("call me")[-1].strip().rstrip(".!?,").split()[0]
+        if nickname:
+            facts.append(("nickname", nickname))
+
+    if "i like " in msg or "i love " in msg:
+        for trigger in ["i like ", "i love "]:
+            if trigger in msg:
+                interest = message.lower().split(trigger)[-1].strip().rstrip(".!?,")
+                if interest and len(interest) < 100:
+                    facts.append(("interest", interest))
+                break
+
+    if "i work as" in msg or "i'm a " in msg or "i am a " in msg:
+        for trigger in ["i work as", "i'm a ", "i am a "]:
+            if trigger in msg:
+                job = message.lower().split(trigger)[-1].strip().rstrip(".!?,")
+                if job and len(job) < 60:
+                    facts.append(("occupation", job.title()))
+                break
+
+    return facts
+
+
+def save_memory(db, user_id, facts):
+    """Upsert facts into the Memory table (avoids duplicates)."""
+    for key, value in facts:
+        existing = (
+            db.query(Memory)
+            .filter(Memory.user_id == user_id, Memory.key == key)
+            .first()
+        )
+        if existing:
+            existing.value = value   # update
+        else:
+            db.add(Memory(user_id=user_id, key=key, value=value))
+    if facts:
+        db.commit()
+
+
+def load_memory_text(db, user_id):
+    """Load all stored facts for a user and format as text."""
+    stored = db.query(Memory).filter(Memory.user_id == user_id).all()
+    if not stored:
+        return None
+    lines = [f"- {m.key}: {m.value}" for m in stored]
+    return "\n".join(lines)
 
 
 # ─── Safety Layer ──────────────────────────────────────────────
@@ -300,7 +376,13 @@ def chat(req: ChatRequest):
         db.commit()
         print(f"[CHAT] Saved user msg id={user_msg.id} to session={req.session_id}")
 
-        # 2. SESSION context window — only this session's messages
+        # 2. Extract & save global memory from user message
+        facts = extract_memory(req.message)
+        if facts:
+            save_memory(db, req.user_id, facts)
+            print(f"[CHAT] Saved memory facts: {facts}")
+
+        # 3. SESSION context window — only this session's messages
         if req.session_id:
             session_history = (
                 db.query(Chat)
@@ -310,7 +392,6 @@ def chat(req: ChatRequest):
                 .all()
             )
         else:
-            # Fallback for old clients without session_id
             session_history = (
                 db.query(Chat)
                 .filter(Chat.user_id == req.user_id)
@@ -319,24 +400,10 @@ def chat(req: ChatRequest):
                 .all()
             )
 
-        # 3. GLOBAL memory — scan ALL user messages for name anchor
-        all_user_msgs = (
-            db.query(Chat)
-            .filter(Chat.user_id == req.user_id, Chat.role == "user")
-            .order_by(Chat.id.asc())
-            .all()
-        )
+        # 4. Load GLOBAL memory from Memory table
+        memory_text = load_memory_text(db, req.user_id)
 
-        user_name = None
-        for msg in all_user_msgs:
-            lower = msg.message.lower()
-            if "my name is" in lower:
-                after = msg.message.split("is")[-1].strip().rstrip(".!?,")
-                if after:
-                    user_name = after
-                    break
-
-        # 4. Build Groq messages list
+        # 5. Build Groq messages list
         messages = []
 
         messages.append({
@@ -344,11 +411,11 @@ def chat(req: ChatRequest):
             "content": get_persona_prompt(req.persona),
         })
 
-        # Global memory anchor
-        if user_name:
+        # Inject global memory
+        if memory_text:
             messages.append({
                 "role": "system",
-                "content": f"IMPORTANT: The user's name is {user_name}. Always use it naturally in conversation.",
+                "content": f"IMPORTANT — Things you know about this user (use naturally, never repeat back robotically):\n{memory_text}",
             })
 
         # Session context (oldest → newest)

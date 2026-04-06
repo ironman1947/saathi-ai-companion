@@ -493,6 +493,8 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
     const text = input.trim();
     if (!text || isSending || !currentSession) return;
 
+    console.log("[Saathi Debug] SENDING:", { user_id: userId, session_id: currentSession.id, message: text, persona });
+
     setIsSending(true);
     setInput("");
     if (textAreaRef.current) textAreaRef.current.style.height = "auto";

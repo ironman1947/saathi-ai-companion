@@ -285,6 +285,13 @@ def get_history(user_id: str, limit: int = 20):
 @app.post("/chat")
 def chat(req: ChatRequest):
 
+    print(f"[CHAT] Received: user_id={req.user_id}, session_id={req.session_id}, persona={req.persona}")
+
+    # Validate required fields
+    if not req.user_id or not req.session_id:
+        print(f"[CHAT] ERROR: Missing user_id or session_id!")
+        return {"response": "Something went wrong. Please refresh and try again."}
+
     # Crisis check first
     if is_crisis(req.message):
         return {
@@ -303,6 +310,7 @@ def chat(req: ChatRequest):
         )
         db.add(user_msg)
         db.commit()
+        print(f"[CHAT] Saved user msg id={user_msg.id} to session={req.session_id}")
 
         # 2. SESSION context window — only this session's messages
         if req.session_id:
@@ -393,6 +401,7 @@ def chat(req: ChatRequest):
         )
         db.add(ai_msg)
         db.commit()
+        print(f"[CHAT] Saved AI msg id={ai_msg.id} to session={req.session_id}")
 
         # 7. Auto-update session title after first real message
         if req.session_id:

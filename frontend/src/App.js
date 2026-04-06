@@ -323,6 +323,46 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
     }
   }, []);
 
+  const createSession = useCallback(async () => {
+    const res = await fetch(`${BACKEND_URL}/sessions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, persona }),
+    });
+    if (!res.ok) throw new Error("Could not create session");
+    return await res.json();
+  }, [userId, persona]);
+
+  const loadSessionMessages = useCallback(async (session, cancelled = false) => {
+    setMessagesLoading(true);
+    try {
+      const data = await fetchWithRetry(`${BACKEND_URL}/session-history/${session.id}`);
+      console.log("[Saathi Debug] Session", session.id, "messages loaded:", data.messages.length);
+      if (cancelled) return;
+      if (data.messages.length === 0) {
+        console.log("[Saathi Debug] No messages in session, showing greeting");
+        setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
+      } else {
+        setMessages(
+          data.messages.map((m) => ({
+            role: m.role === "assistant" ? "ai" : "user",
+            text: m.message,
+            time: null,
+            fromHistory: true,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to load session messages:", err);
+      if (!cancelled) {
+        triggerToast("⚠️ Could not load chat history. Try refreshing.");
+        setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
+      }
+    } finally {
+      if (!cancelled) setMessagesLoading(false);
+    }
+  }, [fetchWithRetry, info.greeting, triggerToast]);
+
   // ── Load sessions on mount ──
   useEffect(() => {
     let cancelled = false;
@@ -387,54 +427,14 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
     }
     loadSessions();
     return () => { cancelled = true; };
-  }, [persona, userId]); // eslint-disable-line
-
-  const createSession = async () => {
-    const res = await fetch(`${BACKEND_URL}/sessions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, persona }),
-    });
-    if (!res.ok) throw new Error("Could not create session");
-    return await res.json();
-  };
-
-  const loadSessionMessages = async (session, cancelled = false) => {
-    setMessagesLoading(true);
-    try {
-      const data = await fetchWithRetry(`${BACKEND_URL}/session-history/${session.id}`);
-      console.log("[Saathi Debug] Session", session.id, "messages loaded:", data.messages.length);
-      if (cancelled) return;
-      if (data.messages.length === 0) {
-        console.log("[Saathi Debug] No messages in session, showing greeting");
-        setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
-      } else {
-        setMessages(
-          data.messages.map((m) => ({
-            role: m.role === "assistant" ? "ai" : "user",
-            text: m.message,
-            time: null,
-            fromHistory: true,
-          }))
-        );
-      }
-    } catch (err) {
-      console.error("Failed to load session messages:", err);
-      if (!cancelled) {
-        triggerToast("⚠️ Could not load chat history. Try refreshing.");
-        setMessages([{ role: "ai", text: info.greeting, time: nowTime() }]);
-      }
-    } finally {
-      if (!cancelled) setMessagesLoading(false);
-    }
-  };
+  }, [persona, userId, fetchWithRetry, triggerToast, createSession, loadSessionMessages, info.greeting]);
 
   const handleSelectSession = useCallback(async (session) => {
     setCurrentSession(session);
     await loadSessionMessages(session);
     // Close sidebar on mobile after selecting a session
     if (window.innerWidth <= 768) setSidebarOpen(false);
-  }, []); // eslint-disable-line
+  }, [loadSessionMessages]);
 
   const handleNewChat = useCallback(async () => {
     try {
@@ -445,7 +445,7 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
     } catch {
       triggerToast("⚠️ Could not create new chat. Try again.");
     }
-  }, [persona, userId, info.greeting, triggerToast]); // eslint-disable-line
+  }, [createSession, info.greeting, triggerToast]);
 
   // Scroll to bottom
   useEffect(() => {

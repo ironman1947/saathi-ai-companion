@@ -1,19 +1,52 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import requests
 import os
 from dotenv import load_dotenv
 from datetime import datetime
 
 from database import engine, Base, SessionLocal
-from models import Chat, Session, Memory
+from models import Chat, Session, Memory, ConversationSummary, MoodEntry
+from memory_engine import (
+    extract_memory_llm,
+    save_extracted_memory,
+    build_personalized_context,
+    maybe_summarize_previous_sessions,
+    load_memory_text,
+    summarize_session,
+)
 
 load_dotenv()
 
-# ---------- Create tables on Supabase PostgreSQL ----------
-Base.metadata.create_all(bind=engine)
+# ---------- Create tables + migrate existing ones ----------
+from sqlalchemy import text as sql_text
+
+def run_migrations():
+    """Auto-migrate: add missing columns to existing tables, create new tables."""
+    # 1. Create any brand-new tables (conversation_summaries, mood_entries)
+    Base.metadata.create_all(bind=engine)
+
+    # 2. Add missing columns to the existing 'memory' table
+    alter_statements = [
+        "ALTER TABLE memory ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'personal'",
+        "ALTER TABLE memory ADD COLUMN IF NOT EXISTS importance INTEGER DEFAULT 5",
+        "ALTER TABLE memory ADD COLUMN IF NOT EXISTS created_at VARCHAR",
+        "ALTER TABLE memory ADD COLUMN IF NOT EXISTS updated_at VARCHAR",
+    ]
+    with engine.connect() as conn:
+        for stmt in alter_statements:
+            try:
+                conn.execute(sql_text(stmt))
+                conn.commit()
+            except Exception as e:
+                # Column might already exist — that's fine
+                conn.rollback()
+                print(f"[Migration] Skipped (already exists): {e}")
+    print("[Migration] ✅ Database migration complete")
+
+run_migrations()
 
 app = FastAPI(title="Saathi AI", description="Emotional Reflection Companion API")
 
@@ -129,80 +162,7 @@ def get_persona_prompt(persona: str) -> str:
 
 
 
-# ─── Memory Extraction ─────────────────────────────────────────
-def extract_memory(message):
-    """Extract important facts from a user message."""
-    msg = message.lower()
-    facts = []
-
-    if "my name is" in msg:
-        name = message.split("is")[-1].strip().rstrip(".!?,")
-        if name:
-            facts.append(("name", name))
-
-    if "i live in" in msg or "i'm from" in msg or "i am from" in msg:
-        for trigger in ["live in", "i'm from", "i am from"]:
-            if trigger in msg:
-                location = message.lower().split(trigger)[-1].strip().rstrip(".!?,")
-                if location:
-                    facts.append(("location", location.title()))
-                break
-
-    if "i am " in msg and "years old" in msg:
-        try:
-            age_part = msg.split("i am ")[1].split("years")[0].strip()
-            if age_part.isdigit():
-                facts.append(("age", age_part))
-        except (IndexError, ValueError):
-            pass
-
-    if "call me " in msg:
-        nickname = message.split("call me")[-1].strip().rstrip(".!?,").split()[0]
-        if nickname:
-            facts.append(("nickname", nickname))
-
-    if "i like " in msg or "i love " in msg:
-        for trigger in ["i like ", "i love "]:
-            if trigger in msg:
-                interest = message.lower().split(trigger)[-1].strip().rstrip(".!?,")
-                if interest and len(interest) < 100:
-                    facts.append(("interest", interest))
-                break
-
-    if "i work as" in msg or "i'm a " in msg or "i am a " in msg:
-        for trigger in ["i work as", "i'm a ", "i am a "]:
-            if trigger in msg:
-                job = message.lower().split(trigger)[-1].strip().rstrip(".!?,")
-                if job and len(job) < 60:
-                    facts.append(("occupation", job.title()))
-                break
-
-    return facts
-
-
-def save_memory(db, user_id, facts):
-    """Upsert facts into the Memory table (avoids duplicates)."""
-    for key, value in facts:
-        existing = (
-            db.query(Memory)
-            .filter(Memory.user_id == user_id, Memory.key == key)
-            .first()
-        )
-        if existing:
-            existing.value = value   # update
-        else:
-            db.add(Memory(user_id=user_id, key=key, value=value))
-    if facts:
-        db.commit()
-
-
-def load_memory_text(db, user_id):
-    """Load all stored facts for a user and format as text."""
-    stored = db.query(Memory).filter(Memory.user_id == user_id).all()
-    if not stored:
-        return None
-    lines = [f"- {m.key}: {m.value}" for m in stored]
-    return "\n".join(lines)
+# ─── Memory functions are now in memory_engine.py ────────────
 
 
 # ─── Safety Layer ──────────────────────────────────────────────
@@ -376,34 +336,37 @@ def chat(req: ChatRequest):
         db.commit()
         print(f"[CHAT] Saved user msg id={user_msg.id} to session={req.session_id}")
 
-        # 2. Extract & save global memory from user message
-        facts = extract_memory(req.message)
-        if facts:
-            save_memory(db, req.user_id, facts)
-            print(f"[CHAT] Saved memory facts: {facts}")
+        # 2. LLM-powered memory extraction (runs in background-style)
+        existing_mem = load_memory_text(db, req.user_id)
+        try:
+            extraction = extract_memory_llm(req.message, existing_mem)
+            if extraction.get("facts") or extraction.get("mood"):
+                save_extracted_memory(db, req.user_id, extraction)
+                print(f"[CHAT] Saved LLM-extracted memory: {len(extraction.get('facts', []))} facts")
+        except Exception as e:
+            print(f"[CHAT] Memory extraction failed (non-blocking): {e}")
 
-        # 3. SESSION context window — only this session's messages
-        if req.session_id:
-            session_history = (
-                db.query(Chat)
-                .filter(Chat.session_id == req.session_id)
-                .order_by(Chat.id.desc())
-                .limit(20)
-                .all()
-            )
-        else:
-            session_history = (
-                db.query(Chat)
-                .filter(Chat.user_id == req.user_id)
-                .order_by(Chat.id.desc())
-                .limit(15)
-                .all()
-            )
+        # 3. Auto-summarize any unsummarized past sessions
+        try:
+            maybe_summarize_previous_sessions(db, req.user_id, req.session_id)
+        except Exception as e:
+            print(f"[CHAT] Session summarization failed (non-blocking): {e}")
 
-        # 4. Load GLOBAL memory from Memory table
-        memory_text = load_memory_text(db, req.user_id)
+        # 4. SESSION context window — current session's messages
+        session_history = (
+            db.query(Chat)
+            .filter(Chat.session_id == req.session_id)
+            .order_by(Chat.id.desc())
+            .limit(20)
+            .all()
+        )
 
-        # 5. Build Groq messages list
+        # 5. Build rich personalized context
+        personalized_context = build_personalized_context(
+            db, req.user_id, req.session_id
+        )
+
+        # 6. Build Groq messages list
         messages = []
 
         messages.append({
@@ -411,11 +374,11 @@ def chat(req: ChatRequest):
             "content": get_persona_prompt(req.persona),
         })
 
-        # Inject global memory
-        if memory_text:
+        # Inject personalized context (memory + summaries + mood)
+        if personalized_context:
             messages.append({
                 "role": "system",
-                "content": f"IMPORTANT — Things you know about this user (use naturally, never repeat back robotically):\n{memory_text}",
+                "content": personalized_context,
             })
 
         # Session context (oldest → newest)
@@ -425,7 +388,7 @@ def chat(req: ChatRequest):
                 "content": msg.message,
             })
 
-        # 5. Call Groq API
+        # 7. Call Groq API
         response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={
@@ -446,7 +409,7 @@ def chat(req: ChatRequest):
         else:
             reply = data["choices"][0]["message"]["content"]
 
-        # 6. Save AI reply
+        # 8. Save AI reply
         ai_msg = Chat(
             user_id=req.user_id,
             session_id=req.session_id,
@@ -458,7 +421,7 @@ def chat(req: ChatRequest):
         db.commit()
         print(f"[CHAT] Saved AI msg id={ai_msg.id} to session={req.session_id}")
 
-        # 7. Auto-update session title after first real message
+        # 9. Auto-update session title after first real message
         if req.session_id:
             session_obj = db.query(Session).filter(Session.id == req.session_id).first()
             if session_obj and session_obj.title == "New Chat":
@@ -472,3 +435,122 @@ def chat(req: ChatRequest):
         db.close()
 
     return {"response": reply}
+
+
+# ─── Memory Dashboard Endpoints ──────────────────────────────
+
+@app.get("/memory/{user_id}")
+def get_memories(user_id: str):
+    """Get all memories for a user, grouped by category."""
+    db = SessionLocal()
+    try:
+        memories = (
+            db.query(Memory)
+            .filter(Memory.user_id == user_id)
+            .order_by(Memory.importance.desc())
+            .all()
+        )
+        grouped = {}
+        for m in memories:
+            cat = m.category or "personal"
+            grouped.setdefault(cat, []).append({
+                "id": m.id,
+                "key": m.key,
+                "value": m.value,
+                "importance": m.importance,
+                "created_at": m.created_at,
+                "updated_at": m.updated_at,
+            })
+        return {"user_id": user_id, "memories": grouped}
+    finally:
+        db.close()
+
+
+@app.delete("/memory/{memory_id}")
+def delete_memory(memory_id: int):
+    """Delete a specific memory by ID."""
+    db = SessionLocal()
+    try:
+        db.query(Memory).filter(Memory.id == memory_id).delete()
+        db.commit()
+        return {"ok": True}
+    finally:
+        db.close()
+
+
+@app.get("/memory/{user_id}/mood-timeline")
+def get_mood_timeline(user_id: str, limit: int = 30):
+    """Get mood history for visualization."""
+    db = SessionLocal()
+    try:
+        moods = (
+            db.query(MoodEntry)
+            .filter(MoodEntry.user_id == user_id)
+            .order_by(MoodEntry.id.desc())
+            .limit(limit)
+            .all()
+        )
+        return {
+            "user_id": user_id,
+            "moods": [
+                {
+                    "id": m.id,
+                    "mood": m.mood,
+                    "intensity": m.intensity,
+                    "context": m.context,
+                    "created_at": m.created_at,
+                }
+                for m in reversed(moods)  # oldest first for timeline
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.get("/memory/{user_id}/summary")
+def get_user_profile_summary(user_id: str):
+    """Get a combined profile summary — memories + mood trend + recent topics."""
+    db = SessionLocal()
+    try:
+        # Memories
+        memories = db.query(Memory).filter(Memory.user_id == user_id).all()
+        mem_count = len(memories)
+
+        # Mood trend
+        moods = (
+            db.query(MoodEntry)
+            .filter(MoodEntry.user_id == user_id)
+            .order_by(MoodEntry.id.desc())
+            .limit(10)
+            .all()
+        )
+        dominant_mood = None
+        if moods:
+            mood_counts = {}
+            for m in moods:
+                mood_counts[m.mood] = mood_counts.get(m.mood, 0) + 1
+            dominant_mood = max(mood_counts, key=mood_counts.get)
+
+        # Recent topics from summaries
+        summaries = (
+            db.query(ConversationSummary)
+            .filter(ConversationSummary.user_id == user_id)
+            .order_by(ConversationSummary.id.desc())
+            .limit(5)
+            .all()
+        )
+        all_topics = []
+        for s in summaries:
+            if s.topics:
+                all_topics.extend(s.topics.split(","))
+        unique_topics = list(dict.fromkeys(t.strip() for t in all_topics if t.strip()))[:10]
+
+        return {
+            "user_id": user_id,
+            "memory_count": mem_count,
+            "dominant_mood": dominant_mood,
+            "recent_topics": unique_topics,
+            "summaries_count": len(summaries),
+        }
+    finally:
+        db.close()

@@ -179,8 +179,204 @@ function PersonaScreen({ userName, userPhoto, onSelect, onLogout }) {
   );
 }
 
+// ─── MEMORY PANEL ─────────────────────────────────────────────
+
+const MOOD_EMOJIS = {
+  happy: "😊", sad: "😢", anxious: "😰", angry: "😠", neutral: "😐",
+  excited: "🤩", lonely: "🥺", stressed: "😫", hopeful: "🌱", confused: "🤔",
+};
+
+const CATEGORY_LABELS = {
+  personal: { icon: "🧑", label: "Personal" },
+  relationship: { icon: "👥", label: "Relationships" },
+  preference: { icon: "💜", label: "Preferences" },
+  emotional: { icon: "💭", label: "Emotional Patterns" },
+  goal: { icon: "🎯", label: "Goals" },
+  context: { icon: "📌", label: "Current Context" },
+};
+
+function MemoryPanel({ userId, onClose }) {
+  const [memories, setMemories] = useState({});
+  const [moods, setMoods] = useState([]);
+  const [profileSummary, setProfileSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("memories");
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    async function loadData() {
+      setLoading(true);
+      try {
+        const [memRes, moodRes, summaryRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/memory/${encodeURIComponent(userId)}`).then(r => r.json()),
+          fetch(`${BACKEND_URL}/memory/${encodeURIComponent(userId)}/mood-timeline`).then(r => r.json()),
+          fetch(`${BACKEND_URL}/memory/${encodeURIComponent(userId)}/summary`).then(r => r.json()),
+        ]);
+        if (cancelled) return;
+        setMemories(memRes.memories || {});
+        setMoods(moodRes.moods || []);
+        setProfileSummary(summaryRes);
+      } catch (err) {
+        console.error("Failed to load memory data:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    loadData();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const handleDeleteMemory = async (memoryId) => {
+    try {
+      await fetch(`${BACKEND_URL}/memory/${memoryId}`, { method: "DELETE" });
+      setMemories((prev) => {
+        const updated = {};
+        for (const [cat, items] of Object.entries(prev)) {
+          const filtered = items.filter((m) => m.id !== memoryId);
+          if (filtered.length > 0) updated[cat] = filtered;
+        }
+        return updated;
+      });
+    } catch (err) {
+      console.error("Failed to delete memory:", err);
+    }
+  };
+
+  const totalMemories = Object.values(memories).flat().length;
+
+  return (
+    <div className="memory-panel">
+      <div className="memory-panel-header">
+        <h2 className="memory-panel-title">🧠 Saathi's Memory</h2>
+        <button className="memory-close-btn" onClick={onClose} aria-label="Close memory panel">✕</button>
+      </div>
+
+      {/* Quick stats */}
+      {profileSummary && (
+        <div className="memory-stats">
+          <div className="memory-stat">
+            <span className="stat-value">{profileSummary.memory_count || 0}</span>
+            <span className="stat-label">Memories</span>
+          </div>
+          <div className="memory-stat">
+            <span className="stat-value">{profileSummary.dominant_mood ? (MOOD_EMOJIS[profileSummary.dominant_mood] || "😐") : "—"}</span>
+            <span className="stat-label">Mood</span>
+          </div>
+          <div className="memory-stat">
+            <span className="stat-value">{profileSummary.summaries_count || 0}</span>
+            <span className="stat-label">Sessions</span>
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="memory-tabs">
+        <button className={`memory-tab ${activeTab === "memories" ? "active" : ""}`} onClick={() => setActiveTab("memories")}>
+          Memories
+        </button>
+        <button className={`memory-tab ${activeTab === "moods" ? "active" : ""}`} onClick={() => setActiveTab("moods")}>
+          Mood Timeline
+        </button>
+        <button className={`memory-tab ${activeTab === "topics" ? "active" : ""}`} onClick={() => setActiveTab("topics")}>
+          Topics
+        </button>
+      </div>
+
+      <div className="memory-content">
+        {loading && (
+          <div className="memory-loading">
+            <div className="session-skeleton" />
+            <div className="session-skeleton short" />
+            <div className="session-skeleton" />
+          </div>
+        )}
+
+        {/* Memories Tab */}
+        {!loading && activeTab === "memories" && (
+          <>
+            {totalMemories === 0 ? (
+              <div className="memory-empty">
+                <span className="memory-empty-icon">🌱</span>
+                <p>No memories yet. Start chatting and Saathi will remember what matters.</p>
+              </div>
+            ) : (
+              Object.entries(CATEGORY_LABELS).map(([cat, { icon, label }]) => {
+                const items = memories[cat];
+                if (!items || items.length === 0) return null;
+                return (
+                  <div key={cat} className="memory-category">
+                    <div className="memory-category-header">
+                      <span>{icon}</span> <span>{label}</span>
+                    </div>
+                    {items.map((m) => (
+                      <div key={m.id} className="memory-item">
+                        <div className="memory-item-content">
+                          <span className="memory-key">{m.key}</span>
+                          <span className="memory-value">{m.value}</span>
+                        </div>
+                        <button className="memory-delete-btn" onClick={() => handleDeleteMemory(m.id)} title="Forget this">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })
+            )}
+          </>
+        )}
+
+        {/* Mood Timeline Tab */}
+        {!loading && activeTab === "moods" && (
+          <>
+            {moods.length === 0 ? (
+              <div className="memory-empty">
+                <span className="memory-empty-icon">💭</span>
+                <p>No mood data yet. Your emotional journey will appear here over time.</p>
+              </div>
+            ) : (
+              <div className="mood-timeline">
+                {moods.map((m, i) => (
+                  <div key={m.id || i} className="mood-entry">
+                    <div className="mood-emoji">{MOOD_EMOJIS[m.mood] || "😐"}</div>
+                    <div className="mood-details">
+                      <div className="mood-label">{m.mood} <span className="mood-intensity">({m.intensity}/10)</span></div>
+                      {m.context && <div className="mood-context">{m.context}</div>}
+                    </div>
+                    <div className="mood-bar-wrap">
+                      <div className="mood-bar" style={{ width: `${(m.intensity / 10) * 100}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Topics Tab */}
+        {!loading && activeTab === "topics" && (
+          <>
+            {(!profileSummary?.recent_topics || profileSummary.recent_topics.length === 0) ? (
+              <div className="memory-empty">
+                <span className="memory-empty-icon">💬</span>
+                <p>Topics from your conversations will appear here after a few chats.</p>
+              </div>
+            ) : (
+              <div className="topics-cloud">
+                {profileSummary.recent_topics.map((topic, i) => (
+                  <span key={i} className="topic-tag">{topic}</span>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 // ─── SIDEBAR ──────────────────────────────────────────────────
-function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, onDeleteSession, persona, userName, userPhoto, isLoading }) {
+function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, onDeleteSession, persona, userName, userPhoto, isLoading, onOpenMemory }) {
   const info = PERSONAS[persona];
   return (
     <div className="sidebar">
@@ -243,6 +439,9 @@ function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, onDel
       </div>
 
       <div className="sidebar-footer">
+        <button className="memory-open-btn" onClick={onOpenMemory} title="View Saathi's memory">
+          🧠 Memory
+        </button>
         <div className="sidebar-user">
           {userPhoto ? (
             <img src={userPhoto} alt={userName} className="sidebar-user-avatar-photo" />
@@ -304,6 +503,7 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
   const [isSending, setIsSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 768);
+  const [memoryOpen, setMemoryOpen] = useState(false);
 
   // Toast
   const [toastMsg, setToastMsg] = useState("");
@@ -575,8 +775,17 @@ function ChatScreen({ persona, userName, userPhoto, userId, onBack }) {
             userName={userName}
             userPhoto={userPhoto}
             isLoading={sessionsLoading}
+            onOpenMemory={() => setMemoryOpen(true)}
           />
         </div>
+
+        {/* Memory Dashboard Panel */}
+        {memoryOpen && (
+          <>
+            <div className="memory-backdrop" onClick={() => setMemoryOpen(false)} />
+            <MemoryPanel userId={userId} onClose={() => setMemoryOpen(false)} />
+          </>
+        )}
 
         {/* Chat panel */}
         <div className="chat-panel">

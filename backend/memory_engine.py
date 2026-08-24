@@ -10,6 +10,7 @@ from datetime import datetime
 from models import Memory, MoodEntry, ConversationSummary, Chat
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 # ─── LLM Helper ──────────────────────────────────────────────
 
@@ -23,7 +24,7 @@ def _call_groq(system_prompt: str, user_prompt: str, max_tokens: int = 500) -> s
                 "Content-Type": "application/json",
             },
             json={
-                "model": "llama-3.1-8b-instant",
+                "model": GROQ_MODEL,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},

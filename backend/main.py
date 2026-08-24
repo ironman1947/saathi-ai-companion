@@ -62,6 +62,8 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
     raise ValueError("GROQ_API_KEY not found in environment")
 
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+
 
 # ─── Request / Response Models ─────────────────────────────────
 
@@ -396,7 +398,7 @@ def chat(req: ChatRequest):
                 "Content-Type":  "application/json",
             },
             json={
-                "model":       "llama-3.1-8b-instant",
+                "model":       GROQ_MODEL,
                 "messages":    messages,
                 "temperature": 0.6,
                 "max_tokens":  400,

@@ -365,7 +365,7 @@ def chat(req: ChatRequest):
 
         # 5. Build rich personalized context
         personalized_context = build_personalized_context(
-            db, req.user_id, req.session_id
+            db, req.user_id, req.session_id, req.message
         )
 
         # 6. Build Groq messages list

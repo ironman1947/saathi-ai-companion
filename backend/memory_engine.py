@@ -8,6 +8,7 @@ import requests
 import os
 from datetime import datetime
 from models import Memory, MoodEntry, ConversationSummary, Chat
+from sqlalchemy import text as sql_text
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
@@ -239,14 +240,116 @@ def summarize_session(db, user_id: str, session_id: int) -> dict:
     )
     db.add(summary_obj)
     db.commit()
-
     return result
+
+
+# ─── Chat RAG Search ─────────────────────────────────────────
+
+def is_trivial_message(message: str) -> bool:
+    """Normalize and check if the query is a simple greeting or too short."""
+    msg = message.strip().lower()
+    trivial_phrases = {
+        "hi", "hello", "hey", "hola", "yo", "sup",
+        "yes", "no", "yep", "nope", "ok", "okay",
+        "thanks", "thank you", "bye", "goodbye",
+        "great", "cool", "nice", "awesome",
+    }
+    if msg in trivial_phrases:
+        return True
+    # Skip extremely short messages (e.g. single words)
+    words = [w for w in msg.split() if w.isalnum()]
+    if len(words) < 2:
+        return True
+    return False
+
+
+def preprocess_search_query(query: str) -> str:
+    """Filter out common conversational filler words to improve full-text matching."""
+    words = query.lower().split()
+    filler_words = {
+        "tell", "show", "find", "search", "about", "please", "some", "more", 
+        "help", "with", "want", "like", "need", "me", "you", "my", "your",
+        "him", "her", "them", "us", "know", "think", "remember", "ask",
+        "question", "talk", "discuss", "say", "said"
+    }
+    filtered = [w for w in words if w not in filler_words]
+    if len(filtered) < 2:
+        return query
+    return " ".join(filtered)
+
+
+def retrieve_relevant_chats(db, user_id: str, current_session_id: int, query: str, limit: int = 3) -> list:
+    """
+    Search past chat history using PostgreSQL Full-Text Search.
+    Returns pairs of user messages and their corresponding assistant replies.
+    """
+    if not query or is_trivial_message(query):
+        return []
+
+    try:
+        clean_query = preprocess_search_query(query)
+
+        # Search for matching user messages in other sessions using relaxed OR matching ranked by ts_rank
+        sql = sql_text("""
+            SELECT id, session_id, message,
+                   ts_rank(to_tsvector('english', message), replace(plainto_tsquery('english', :query)::text, '&', '|')::tsquery) as rank
+            FROM chats 
+            WHERE user_id = :user_id 
+              AND session_id != :current_session_id
+              AND role = 'user' 
+              AND to_tsvector('english', message) @@ replace(plainto_tsquery('english', :query)::text, '&', '|')::tsquery
+            ORDER BY rank DESC, id DESC
+            LIMIT :limit
+        """)
+        
+        results = db.execute(sql, {
+            "user_id": user_id,
+            "current_session_id": current_session_id,
+            "query": clean_query,
+            "limit": limit
+        }).fetchall()
+
+        relevant_pairs = []
+        for row in results:
+            match_id = row[0]
+            session_id = row[1]
+            user_msg = row[2]
+
+            # Fetch the user message and the following AI response
+            reply_sql = sql_text("""
+                SELECT role, message 
+                FROM chats 
+                WHERE session_id = :session_id 
+                  AND id >= :match_id 
+                ORDER BY id ASC 
+                LIMIT 2
+            """)
+            conversation_slice = db.execute(reply_sql, {
+                "session_id": session_id,
+                "match_id": match_id
+            }).fetchall()
+
+            if conversation_slice:
+                pair = {"user": user_msg, "assistant": ""}
+                for slice_row in conversation_slice:
+                    role = slice_row[0]
+                    msg_text = slice_row[1]
+                    if role == "assistant":
+                        pair["assistant"] = msg_text
+                relevant_pairs.append(pair)
+
+        return relevant_pairs
+    except Exception as e:
+        print(f"[RAG] Failed to retrieve relevant chats: {e}")
+        return []
+
 
 
 # ─── Context Builder ────────────────────────────────────────
 
-def build_personalized_context(db, user_id: str, current_session_id: int) -> str:
-    """Build rich personalized context from memory, summaries, and mood history."""
+
+def build_personalized_context(db, user_id: str, current_session_id: int, current_message: str = "") -> str:
+    """Build rich personalized context from memory, summaries, mood history, and RAG retrieval."""
     sections = []
 
     # 1. User memory
@@ -277,7 +380,21 @@ def build_personalized_context(db, user_id: str, current_session_id: int) -> str
             + "\n".join(summary_lines)
         )
 
-    # 3. Mood trend
+    # 3. Relevant Past Conversations (RAG from other sessions)
+    if current_message:
+        past_chats = retrieve_relevant_chats(db, user_id, current_session_id, current_message)
+        if past_chats:
+            chat_lines = []
+            for pc in past_chats:
+                chat_lines.append(f"- User: {pc['user']}")
+                if pc.get("assistant"):
+                    chat_lines.append(f"  AI: {pc['assistant']}")
+            sections.append(
+                "[RELEVANT PAST CONVERSATIONS — Memories from earlier discussions]\n"
+                + "\n".join(chat_lines)
+            )
+
+    # 4. Mood trend
     moods = (
         db.query(MoodEntry)
         .filter(MoodEntry.user_id == user_id)
@@ -302,6 +419,7 @@ def build_personalized_context(db, user_id: str, current_session_id: int) -> str
         "Weave it into conversation as a friend who genuinely remembers.\n\n"
         + "\n\n".join(sections)
     )
+
 
 
 # ─── Auto-Summarize Check ───────────────────────────────────
